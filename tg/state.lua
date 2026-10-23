@@ -25,8 +25,10 @@ local function fresh()
 end
 
 local function write(data)
+  -- Serialize first so a bad table never leaves a half-written temp file.
+  local serialized = textutils.serialize(data)
   local out = assert(fs.open(TMP, 'w'), 'Unable to write state temp file')
-  out.write(textutils.serialize(data))
+  out.write(serialized)
   out.close()
   -- Keep a complete previous version. If power fails mid-replace, load BAK.
   if fs.exists(BAK) then fs.delete(BAK) end

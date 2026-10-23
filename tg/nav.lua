@@ -8,7 +8,13 @@ local vectors = {
 
 local function action(name, fn, update)
   assert(not state.data.pending, 'Pending physical action; manual recovery required')
-  state.data.pending = {action = name, pose = state.data.pose}
+  -- Save a snapshot, NOT another reference to state.data.pose.
+  -- ComputerCraft's serializer rejects repeated table references.
+  local p = state.data.pose
+  state.data.pending = {
+    action = name,
+    pose = {x = p.x, y = p.y, z = p.z, dir = p.dir},
+  }
   state.save()
   local ok, reason = fn()
   if ok then update(state.data.pose) end

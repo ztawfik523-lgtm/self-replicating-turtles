@@ -29,6 +29,18 @@ local ok, err = pcall(function()
     status()
   elseif command == 'probe' then
     require('probe').run()
+  elseif command == 'recover' then
+    -- Safe only for surveys aborted before the first physical movement.
+    local d = state.data
+    assert(not d.pending and not d.replication, 'Cannot recover: uncertain movement or replication')
+    assert(d.trip and d.trip.out == 0 and d.trip.origin, 'Cannot recover: survey may have moved; investigate manually')
+    local p, o = d.pose, d.trip.origin
+    assert(p.x == o.x and p.y == o.y and p.z == o.z and p.dir == o.dir,
+      'Cannot recover: current pose differs from survey origin')
+    d.trip = nil
+    state.save()
+    log.event('recover', 'cleared zero-movement survey')
+    print('Recovered: aborted survey had no recorded movement.')
   elseif command == 'survey' then
     print('Survey:', require('survey').run(tonumber(args[2] or '4')))
   elseif command == 'install' then
@@ -37,7 +49,7 @@ local ok, err = pcall(function()
   elseif command == 'replicate' then
     require('replicate').lab()
   elseif command == 'help' then
-    print('tg/main.lua status | probe | survey <1..12> | install [drive-side] | replicate')
+    print('tg/main.lua status | probe | recover | survey <1..12> | install [drive-side] | replicate')
   else
     error('Unknown command. Run: tg/main.lua help')
   end
