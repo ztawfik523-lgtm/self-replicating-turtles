@@ -2,7 +2,7 @@
 
 Minecraft 1.20.1 Forge • CC: Tweaked • Advanced Peripherals • Turtlematic
 
-**Experimental v0.1.2**: persistent turtle state, fuel safeguards, limited mining survey and a lab reproduction test. Not autonomous or verified in Minecraft yet.
+**Experimental v0.1.3**: persistent turtle state, fuel safeguards, limited mining survey and a lab reproduction test. Not autonomous or verified in Minecraft yet.
 
 ## One-command installation (inside a turtle)
 
@@ -21,3 +21,12 @@ The installer resolves the current GitHub commit, downloads and syntax-checks al
 `tg/main.lua survey 4` attempts a short, destructive mining survey. Run only where digging is safe. `tg/main.lua install front` and `tg/main.lua replicate` are *untested Minecraft integration experiments*, not proven reproduction.
 
 The source code is intentionally small and independent of client-only mods. This repository contains Lua software; it does not install Minecraft mods.
+
+## Next test: lab reproduction
+
+1. Place an **empty disk drive directly in front** of the parent turtle; leave the block immediately **behind** the parent empty (with safe ground beneath it).
+2. Put exactly **one spare Mining Turtle item** and at least **4 coal/charcoal** in the parent's inventory. The parent must already have fuel.
+3. Run `tg/main.lua replicate`.
+4. A successful test programs the child in the disk drive, retrieves it, places it behind the parent, transfers fuel, and powers it on. Check the child terminal for generation=1.
+
+The entire sequence has **not yet been tested in Minecraft**. It deliberately halts on an interrupted or partially completed replication rather than blindly duplicating the attempt. On failure report the printed `Replication:` stage; do not run `replicate` again without checking the world and state.

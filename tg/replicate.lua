@@ -20,6 +20,7 @@ local function mark(stage)
   state.data.replication.stage = stage
   state.save()
   log.event('replication', stage)
+  print('Replication: ' .. stage)
 end
 
 function M.lab()
@@ -29,6 +30,7 @@ function M.lab()
   local child = assert(findTurtle(), 'Put ONE normal/advanced turtle item in inventory')
   local coal = assert(fuel.findFuelSlot(child), 'Provide coal or charcoal for child')
   assert(turtle.getItemCount(coal) >= config.childFuelItems, 'Need more coal for child')
+  print('Preflight OK: child turtle, fuel and empty drive detected')
   -- No automatic retry after interruption. A human must reconcile partial work.
   state.data.replication = {stage = 'start', childSlot = child, fuelSlot = coal}
   state.save()
@@ -40,11 +42,19 @@ function M.lab()
   assert(disk.isPresent('front'), 'Drive did not receive child: check for dropped item')
   clone.install('front')
   mark('programmed')
-  -- Disk drive is an inventory on some CC builds; verify extraction in-game.
-  assert(turtle.suck(1), 'Could not retrieve programmed child from drive')
+  -- Try normal extraction first. The documented disk.eject path is a fallback
+  -- if this mod configuration won't let turtles extract directly.
+  local retrieved = turtle.suck(1)
+  if not retrieved then
+    print('Direct extraction failed; ejecting child from disk drive...')
+    disk.eject('front')
+    sleep(0.5)
+    retrieved = turtle.suck(1)
+  end
+  assert(retrieved, 'Could not recover programmed child (check in front of drive)')
   sleep(0.2)
-  mark('retrieved')
   child = assert(findTurtle(), 'Programmed child not found in parent inventory')
+  mark('retrieved')
 
   assert(nav.right())
   assert(nav.right())

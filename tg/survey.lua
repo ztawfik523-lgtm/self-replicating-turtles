@@ -6,19 +6,27 @@ local nav = require('nav')
 local fuel = require('fuel')
 local log = require('log')
 
+-- Let the pickaxe handle ordinary blocks (including short grass).
+-- Only protect obvious liquids, unbreakable blocks, and player infrastructure.
+local protected = {
+  ['minecraft:bedrock'] = true, ['minecraft:barrier'] = true,
+  ['minecraft:water'] = true, ['minecraft:lava'] = true,
+  ['minecraft:chest'] = true, ['minecraft:trapped_chest'] = true,
+  ['minecraft:barrel'] = true, ['minecraft:ender_chest'] = true,
+  ['minecraft:furnace'] = true, ['minecraft:blast_furnace'] = true,
+  ['minecraft:smoker'] = true, ['minecraft:hopper'] = true,
+  ['minecraft:dispenser'] = true, ['minecraft:dropper'] = true,
+  ['minecraft:crafting_table'] = true, ['minecraft:tnt'] = true,
+  ['minecraft:spawner'] = true, ['minecraft:beehive'] = true,
+  ['minecraft:bee_nest'] = true,
+}
 local function mineable(block)
   if not block or not block.name then return false end
   local n = block.name
-  if n:find('^minecraft:') == nil then return false end
-  if n:find('_ore$') then return true end
-  local okay = {
-    ['minecraft:stone'] = true, ['minecraft:deepslate'] = true,
-    ['minecraft:granite'] = true, ['minecraft:diorite'] = true,
-    ['minecraft:andesite'] = true, ['minecraft:tuff'] = true,
-    ['minecraft:dirt'] = true, ['minecraft:grass_block'] = true,
-    ['minecraft:cobblestone'] = true, ['minecraft:gravel'] = true,
-  }
-  return okay[n] == true
+  -- Avoid breaking unknown mod machinery during this lab test.
+  if not n:find('^minecraft:') then return false end
+  if protected[n] or n:find('shulker_box') or n:find('command_block') then return false end
+  return true
 end
 local function inventoryHasSpace()
   for i = 1, 16 do if turtle.getItemCount(i) == 0 then return true end end
