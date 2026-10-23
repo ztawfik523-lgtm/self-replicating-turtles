@@ -1,0 +1,69 @@
+import json
+import pytest
+from websockets.asyncio.client import connect
+from websockets.asyncio.server import serve
+from controller.engine import Colony, shortages, next_job
+from controller.server import Host
+
+def hello(journal=None):
+    return {"type":"hello","id":7,"generation":1,
+        "snapshot":{"fuel":200,"inventory":[{"name":"minecraft:raw_iron","count":9}]},
+        "journal":journal or {}}
+
+def test_missing_materials_and_no_fake_base(tmp_path):
+    db=Colony(tmp_path/"db.json")
+    rec=db.register(hello())
+    assert next_job(rec) is None
+    assert shortages(rec.last_snapshot)["minecraft:iron_ingot"]==7
+
+def test_continued_job_not_repeated_after_reboot(tmp_path):
+    p=tmp_path/"db.json"
+    db=Colony(p);rec=db.register(hello())
+    job=db.queue(7,"produce");db.sent(7,job.id)
+    db2=Colony(p);rec=db2.register(hello({"id":job.id,"status":"started"}))
+    assert db2.reconcile_hello(rec,hello({"id":job.id,"status":"started"}))=="interrupted"
+    assert rec.outstanding.state=="interrupted"
+    complete=hello({"id":job.id,"status":"done",
+        "result":{"type":"result","id":job.id,"ok":True}})
+    assert db2.reconcile_hello(rec,complete)=="complete"
+    assert not db2.complete(7,job.id,{"ok":True})
+    assert len(rec.history)==1
+
+def test_scheduler_decides_from_inventory_and_base(tmp_path):
+    db=Colony(tmp_path/"db.json");rec=db.register(hello())
+    rec.last_snapshot={"front":"minecraft:furnace","bottom":"minecraft:chest",
+        "inventory":[{"name":"minecraft:coal","count":2},
+                     {"name":"minecraft:raw_iron","count":10}]}
+    action,args=next_job(rec)
+    assert action=="process" and args["kind"]=="iron"
+    rec.blocked[action]=args["snapshot_key"]
+    assert next_job(rec) is None
+    rec.last_snapshot["inventory"].append({"name":"minecraft:coal","count":1})
+    assert next_job(rec) is not None
+
+def test_production_requires_full_bill(tmp_path):
+    db=Colony(tmp_path/"db.json");rec=db.register(hello())
+    items={"minecraft:oak_planks":14,"minecraft:coal":4,
+       "minecraft:stone":7,"minecraft:iron_ingot":7,
+       "minecraft:redstone":1,"minecraft:glass_pane":1,"minecraft:diamond":3}
+    rec.last_snapshot={"front":"computercraft:disk_drive","bottom":"minecraft:chest",
+        "inventory":[{"name":k,"count":v} for k,v in items.items()]}
+    assert next_job(rec)[0]=="produce"
+    rec.last_snapshot["inventory"][0]["count"]=13
+    assert next_job(rec) is None
+
+@pytest.mark.asyncio
+async def test_websocket_worker_protocol(tmp_path):
+    host=Host(tmp_path/"db.json")
+    rec=host.colony.register(hello())
+    job=host.colony.queue(rec.turtle_id,"observe")
+    async with serve(host.handle,"127.0.0.1",0) as server:
+        port=server.sockets[0].getsockname()[1]
+        async with connect(f"ws://127.0.0.1:{port}") as ws:
+            await ws.send(json.dumps(hello()))
+            assert json.loads(await ws.recv())["type"]=="welcome"
+            data=json.loads(await ws.recv())
+            assert data["id"]==job.id and data["action"]=="observe"
+            await ws.send(json.dumps({"type":"result","id":job.id,"ok":True}))
+            assert json.loads(await ws.recv())["accepted"]
+    assert host.colony.turtles[7].outstanding is None
