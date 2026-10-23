@@ -2,6 +2,7 @@
 local M={}
 local state=require('state')
 local journal='/tg/worker-job.dat'
+local journalBackup=journal..'.bak'
 local configFile='/tg/worker-config.dat'
 local function configuredURL()
  if fs.exists(configFile) then
@@ -20,17 +21,25 @@ local function saveURL(url)
  f.close()
 end
 local function readJournal()
- if not fs.exists(journal) then return {} end
- local f=fs.open(journal,'r')
- if not f then return {} end
- local v=textutils.unserialize(f.readAll());f.close()
- return type(v)=='table' and v or {}
+ for _,path in ipairs({journal,journalBackup}) do
+  if fs.exists(path) then
+   local f=fs.open(path,'r')
+   if f then
+    local ok,value=pcall(function()return textutils.unserialize(f.readAll())end)
+    f.close()
+    if ok and type(value)=='table' and type(value.id)=='string'
+      and type(value.status)=='string' then return value end
+   end
+  end
+ end
+ return {}
 end
 local function writeJournal(v)
  local tmp=journal..'.tmp'
  local f=assert(fs.open(tmp,'w'))
  f.write(textutils.serialize(v));f.close()
- if fs.exists(journal) then fs.delete(journal) end
+ if fs.exists(journalBackup) then fs.delete(journalBackup) end
+ if fs.exists(journal) then fs.move(journal,journalBackup) end
  fs.move(tmp,journal)
 end
 local function snapshot()
