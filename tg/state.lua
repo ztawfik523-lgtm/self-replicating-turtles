@@ -18,6 +18,8 @@ local function fresh()
   local parentID = seed and seed.parentID or nil
   return {
     schema = 1, generation = generation or 0, parentID = parentID,
+    autoSeed = seed and seed.auto == true or false,
+    autonomyEnabled = seed and seed.auto == true or false,
     pose = {x = 0, y = 0, z = 0, dir = 0}, -- local axes; not world coordinates
     pending = nil, trip = nil, replication = nil,
     bootCount = 0, moves = 0, surveys = 0, children = 0,

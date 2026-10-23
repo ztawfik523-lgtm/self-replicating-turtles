@@ -16,6 +16,7 @@ local function status()
   if d.pending then printError('HALTED uncertain action: ' .. tostring(d.pending.action)) end
   if d.trip then printError('HALTED interrupted survey: ' .. tostring(d.trip.out) .. ' steps out') end
   if d.replication then printError('HALTED interrupted replication: ' .. tostring(d.replication.stage)) end
+  if d.miner then require('miner').status() end
 end
 
 local ok, err = pcall(function()
@@ -24,7 +25,14 @@ local ok, err = pcall(function()
     state.save()
     log.event('boot', 'generation=' .. tostring(state.data.generation))
     status()
-    if config.mode ~= 'lab' then printError('Unknown mode; autonomous loop not yet implemented') end
+    -- Restore autonomous mining after a normal world restart.
+    if state.data.autoSeed then
+      state.data.autoSeed = false
+      state.save()
+      require('miner').run()
+    elseif state.data.miner and state.data.miner.running then
+      require('miner').run()
+    end
   elseif command == 'status' then
     status()
   elseif command == 'probe' then
@@ -43,6 +51,14 @@ local ok, err = pcall(function()
     state.save()
     log.event('recover', 'cleared zero-movement survey')
     print('Recovered: aborted survey had no recorded movement.')
+  elseif command == 'auto' then
+    state.data.autonomyEnabled = true
+    state.save()
+    require('miner').run(args[2] and tonumber(args[2]) or nil)
+  elseif command == 'stop' then
+    state.data.autonomyEnabled = false
+    state.save()
+    require('miner').stop()
   elseif command == 'survey' then
     print('Survey:', require('survey').run(tonumber(args[2] or '4')))
   elseif command == 'install' then
@@ -53,7 +69,7 @@ local ok, err = pcall(function()
   elseif command == 'resume' then
     require('replicate').resume()
   elseif command == 'help' then
-    print('tg/main.lua status | probe | diagnose | recover | survey <1..12> | install [drive-side] | replicate | resume')
+    print('tg/main.lua status | probe | diagnose | recover | auto [tunnels] | stop | survey <1..12> | install [drive-side] | replicate | resume')
   else
     error('Unknown command. Run: tg/main.lua help')
   end

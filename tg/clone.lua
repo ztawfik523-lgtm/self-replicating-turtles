@@ -6,7 +6,7 @@ local files = {
   'startup.lua',
   'tg/config.lua', 'tg/state.lua', 'tg/log.lua', 'tg/fuel.lua',
   'tg/nav.lua', 'tg/survey.lua', 'tg/clone.lua', 'tg/replicate.lua',
-  'tg/main.lua', 'tg/probe.lua',
+  'tg/main.lua', 'tg/probe.lua', 'tg/miner.lua',
 }
 local function contents(path)
   local f = fs.open(path, 'r')
@@ -41,7 +41,7 @@ function M.install(side)
   -- Record lineage without cloning any previous robot's state.
   local seedPath = fs.combine(mount, 'tg/seed.dat')
   local seed = {schema = 1, generation = state.data.generation + 1,
-    parentID = os.getComputerID()}
+    parentID = os.getComputerID(), auto = state.data.autonomyEnabled == true}
   if fs.exists(seedPath) then fs.delete(seedPath) end
   local f = assert(fs.open(seedPath, 'w'))
   f.write(textutils.serialize(seed))

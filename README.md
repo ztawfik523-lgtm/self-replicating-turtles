@@ -2,7 +2,7 @@
 
 Minecraft 1.20.1 Forge • CC: Tweaked • Advanced Peripherals • Turtlematic
 
-**Experimental v0.1.5**: persistent turtle state, fuel safeguards, limited mining survey and a lab reproduction test. Not autonomous or verified in Minecraft yet.
+**Experimental v0.2.0**: persistent turtle state, fuel safeguards, limited mining survey and a lab reproduction test. Not autonomous or verified in Minecraft yet.
 
 ## One-command installation (inside a turtle)
 
@@ -40,3 +40,21 @@ If v0.1.3 failed at the **inserted** stage, leave the item in the disk drive and
 ## Placement-stage diagnostics (v0.1.5)
 
 When an initial turtle has been placed but is not detected as a peripheral, leave it in place. Run `tg/main.lua diagnose` to inspect the front block and peripheral type. If the replication stage is `init_placed`, `tg/main.lua resume` rechecks the placed turtle and continues only when the expected block and computer methods are available. This avoids blindly creating another child.
+
+## Autonomous mining v0.2
+
+The miner descends 24 blocks from its starting location, then explores four compass directions with tunnel radius 8, 16, 24, and 32. It descends another 16 blocks and repeats, up to seven levels. It checks for ore ahead, overhead, and below, refuels from coal/charcoal in its inventory, preserves navigation progress and discards excess common stone/dirt once the inventory fills.
+
+In a **disposable survival/creative test world**, move the parent away from the disk drive to safe ordinary terrain, put coal in the turtle, and run:
+
+```sh
+tg/main.lua auto 4
+```
+
+This runs four tunnel passes unattended and then pauses. To run until planned areas are exhausted or fuel/terrain prevents further progress, use `tg/main.lua auto`. Existing programs are loaded directly; **no reboot is required after installation**.
+
+`tg/main.lua status` displays mining state. Terminate a live program with Ctrl+T; then `tg/main.lua stop` disables automatic restart. A saved physical `pending` action still requires manual inspection before auto-resuming, to avoid a guessed position after a power loss.
+
+This is **not** yet fully self-sustaining or self-replicating. It cannot automatically craft furnaces, compute all turtle recipe dependencies or build storage; it may stop if it finds insufficient coal or a liquid/unbreakable obstacle. Extensive chunk loading away from players also requires an installed and configured turtle upgrade or other chunk-loading mechanism.
+
+When a later offspring is created from a parent that has enabled autonomy, the offspring inherits the auto-start setting (not the parent's map and inventory).
