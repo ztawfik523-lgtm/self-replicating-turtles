@@ -3,11 +3,11 @@
 local REPO = 'ztawfik523-lgtm/self-replicating-turtles'
 local API = 'https://api.github.com/repos/' .. REPO .. '/commits/main'
 local STAGE = '/tg-download'
-local EXPECTED = '0.2.1'
+local EXPECTED = '0.3.0'
 local FILES = {
   'tg/config.lua', 'tg/state.lua', 'tg/log.lua', 'tg/fuel.lua',
   'tg/nav.lua', 'tg/survey.lua', 'tg/clone.lua', 'tg/replicate.lua',
-  'tg/probe.lua', 'tg/main.lua', 'tg/miner.lua', 'startup.lua',
+  'tg/probe.lua', 'tg/main.lua', 'tg/miner.lua', 'tg/factory.lua', 'startup.lua',
 }
 
 assert(turtle, 'This installer must run inside a turtle')

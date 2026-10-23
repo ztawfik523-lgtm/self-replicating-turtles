@@ -1,66 +1,65 @@
 # Turtle Genesis
 
-Minecraft 1.20.1 Forge • CC: Tweaked • Advanced Peripherals • Turtlematic
+Minecraft **1.20.1 Forge**, CC: Tweaked, Advanced Peripherals, Turtlematic.
 
-**Experimental v0.2.1**: persistent turtle state, fuel safeguards, limited mining survey and a lab reproduction test. Not autonomous or verified in Minecraft yet.
+## Current status — 0.3.0
 
-## One-command installation (inside a turtle)
+- **Verified in Minecraft:** autonomous tunnel mining, parent programming and booting a pre-made offspring.
+- **Implemented and mock-tested (not yet verified in Minecraft):** crafting a new Mining + Crafting Turtle from ordinary components, with the parent's inventory managed automatically.
+- **Not implemented:** automated gathering of every manufacturing resource, raw-ore smelting, charcoal farming, building a self-supplied disk drive, reliable long-range exploration.
+
+This is a fixed-recipe robotics experiment, **not** a general AI or mature unattended survival colony.
+
+## Update (in any installed turtle)
 
 ```sh
 wget run https://raw.githubusercontent.com/ztawfik523-lgtm/self-replicating-turtles/main/install.lua
 ```
 
-After installation, run `tg/main.lua status`. No reboot is needed to use updated commands.
+The installer resolves a single Git commit for every file and checks the download before installation. Updates don't need `reboot`.
 
-The installer resolves the current GitHub commit, downloads and syntax-checks all files from that immutable revision before replacing any. It retains existing `/tg/state.dat`, `/tg/seed.dat`, and logs. It preserves an existing `/startup.lua` as `/startup.lua.genesis-backup` the first time it runs.
+## Lab manufacturing — first turtle from components
 
-**Important:** running `wget run` downloads and executes Lua from this public GitHub repository. Review `install.lua` before running if desired, and ensure CC: Tweaked HTTP access is enabled.
+Use an existing **Mining Turtle** or **Crafty Mining Turtle**. If it has only a pickaxe equipped, supply one extra crafting table in its inventory; the script equips it to the free upgrade slot. The turtle needs:
+- **One empty chest or barrel immediately below it**, used as temporary inventory space.
+- **One empty disk drive immediately in front** for the combined `produce` test.
+- **An empty deployment block immediately behind**, with ground below for the child.
+- In its inventory: **14 planks of the same type, 7 stone (not cobblestone), 7 iron ingots, 1 redstone, 1 glass pane, 3 diamonds, 4 coal or charcoal** (and the extra crafting table if needed).
+- Make sure the parent has enough fuel and is not on an interrupted/uncertain movement state.
 
-## Development
-
-`tg/main.lua survey 4` attempts a short, destructive mining survey. Run only where digging is safe. `tg/main.lua install front` and `tg/main.lua replicate` are *untested Minecraft integration experiments*, not proven reproduction.
-
-The source code is intentionally small and independent of client-only mods. This repository contains Lua software; it does not install Minecraft mods.
-
-## Next test: lab reproduction
-
-1. Place an **empty disk drive directly in front** of the parent turtle; leave the block immediately **behind** the parent empty (with safe ground beneath it).
-2. Put exactly **one spare Mining Turtle item** and at least **4 coal/charcoal** in the parent's inventory. The parent must already have fuel.
-3. Run `tg/main.lua replicate`.
-4. A successful test programs the child in the disk drive, retrieves it, places it behind the parent, transfers fuel, and powers it on. Check the child terminal for generation=1.
-
-The entire sequence has **not yet been tested in Minecraft**. It deliberately halts on an interrupted or partially completed replication rather than blindly duplicating the attempt. On failure report the printed `Replication:` stage; do not run `replicate` again without checking the world and state.
-
-## Fresh turtle initialization and interrupted drive insertion
-
-A new uninitialized turtle item has no mounted filesystem. v0.1.4 tries to extract it from the drive, temporarily place and power it on to assign an ID, dig it back into inventory, return it to the drive and install the source files. The Mining Turtle must have an unobstructed air block behind it, directly opposite the drive. This physical sequence still requires an in-game test.
-
-If v0.1.3 failed at the **inserted** stage, leave the item in the disk drive and run `tg/main.lua resume` after updating. The resume command is only allowed at the precise inserted stage. If it fails later, report the stage; do not retry blindly.
-
-## Placement-stage diagnostics (v0.1.5)
-
-When an initial turtle has been placed but is not detected as a peripheral, leave it in place. Run `tg/main.lua diagnose` to inspect the front block and peripheral type. If the replication stage is `init_placed`, `tg/main.lua resume` rechecks the placed turtle and continues only when the expected block and computer methods are available. This avoids blindly creating another child.
-
-## Autonomous mining v0.2
-
-The miner descends 24 blocks from its starting location, then explores four compass directions with tunnel radius 8, 16, 24, and 32. It descends another 16 blocks and repeats, up to seven levels. It checks for ore ahead, overhead, and below, refuels from coal/charcoal in its inventory, preserves navigation progress and discards excess common stone/dirt once the inventory fills.
-
-In a **disposable survival/creative test world**, move the parent away from the disk drive to safe ordinary terrain, put coal in the turtle, and run:
+Commands:
 
 ```sh
-tg/main.lua auto 4
+tg/main.lua materials
+tg/main.lua make
 ```
 
-This runs four tunnel passes unattended and then pauses. To run until planned areas are exhausted or fuel/terrain prevents further progress, use `tg/main.lua auto`. Existing programs are loaded directly; **no reboot is required after installation**.
+`make` only crafts the offspring into the parent's inventory; it does **not** deploy it. To do both crafting and the previously tested code inheritance/deployment in one command (start with the raw components, not an existing child item), run:
 
-`tg/main.lua status` displays mining state. Terminate a live program with Ctrl+T; then `tg/main.lua stop` disables automatic restart. A saved physical `pending` action still requires manual inspection before auto-resuming, to avoid a guessed position after a power loss.
+```sh
+tg/main.lua produce
+```
 
-This is **not** yet fully self-sustaining or self-replicating. It cannot automatically craft furnaces, compute all turtle recipe dependencies or build storage; it may stop if it finds insufficient coal or a liquid/unbreakable obstacle. Extensive chunk loading away from players also requires an installed and configured turtle upgrade or other chunk-loading mechanism.
+**Do not run both `make` and `produce` on the same supplied resources.** A successful `make` consumes them. With `produce`, the parent attempts eight crafting operations (sticks, chest, table, pickaxe, computer, turtle and two upgrades), initializes the item in the drive, transfers source files and fuels/boots it.
 
-When a later offspring is created from a parent that has enabled autonomy, the offspring inherits the auto-start setting (not the parent's map and inventory).
+The script checks the full resource bill before starting, uses the chest below to stage non-recipe items, verifies each crafting recipe with `turtle.craft(0)`, and retrieves staged materials after each craft. A failed step is deliberately **not** restarted automatically. Check inventory and chest before resuming; `tg/main.lua collect` retrieves material in the chest, and `tg/main.lua factory-abort` clears the unfinished crafting flag after retrieval. Consumed materials cannot be recovered by these commands.
 
-## v0.2.1: recovery and safe interruption
+All recipes were based on the CC: Tweaked recipe source, including the two upgrade directions. The actual 1.20.1 Forge integration still requires testing in-game.
 
-The v0.2.0 miner can preserve `pending=back` if Ctrl+T kills a turtle movement before its result is recorded. The engine cannot determine whether the move physically happened. **Do not blindly delete the pending flag or assume a position.** When already stopped underground, `tg/main.lua rebase` backs up the original state, discards the old route, and treats the turtle's current block as a new local origin; this does not move the turtle or remove its inventory. Subsequent `tg/main.lua auto 4` first moves 16 blocks deeper to avoid re-mining the old tunnel network, then starts four new tunnels. Only use rebase on a stationary turtle with no active reproduction or separate survey.
+## Previous commands
 
-When mining normally, open the turtle terminal and **press S** (without Enter) to request a graceful stop. It finishes returning to its tunnel entrance first, then stops. Do not use Ctrl+T to stop ordinary mining; it can interrupt physical commands. The `stop` command remains available to disable autostart while idle.
+- `tg/main.lua status` — inspect generation, navigation and mining state.
+- `tg/main.lua auto 4` — older blind mining prototype (**not recommended** as the next development focus).
+- `tg/main.lua stop` — disable idle automatic mining.
+- `tg/main.lua rebase` — re-anchor after interrupted movement; abandons the old mining route.
+- `tg/main.lua replicate` — clone a pre-made, supplied turtle item using a disk drive.
+- `tg/main.lua resume` — resume supported partial replication state.
+
+## Inspiration and design notes
+
+- https://github.com/Jumbub/replicating-robots — historical self-replication survival challenge with a simple initial environment.
+- https://github.com/SPOOKEXE/computercraft-turtle-botnet — state-persistent self-replication ambitions; unlike that project, Turtle Genesis does not depend on Python/websocket orchestration.
+- https://tweaked.cc/module/turtle.html — official crafting and turtle API.
+- CC: Tweaked RecipeProvider.java: patterns `###/#R#/#G#` for computer and `###/#C#/#I#` for turtle.
+
+The design goal remains unattended reproduction from one starting turtle. The new manufacturing phase is a component test toward it, not completion of that goal.

@@ -6,7 +6,7 @@ local files = {
   'startup.lua',
   'tg/config.lua', 'tg/state.lua', 'tg/log.lua', 'tg/fuel.lua',
   'tg/nav.lua', 'tg/survey.lua', 'tg/clone.lua', 'tg/replicate.lua',
-  'tg/main.lua', 'tg/probe.lua', 'tg/miner.lua',
+  'tg/main.lua', 'tg/probe.lua', 'tg/miner.lua', 'tg/factory.lua',
 }
 local function contents(path)
   local f = fs.open(path, 'r')

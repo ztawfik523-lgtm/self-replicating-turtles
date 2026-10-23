@@ -18,6 +18,7 @@ local function status()
   if d.pending then printError('HALTED uncertain action: ' .. tostring(d.pending.action)) end
   if d.trip then printError('HALTED interrupted survey: ' .. tostring(d.trip.out) .. ' steps out') end
   if d.replication then printError('HALTED interrupted replication: ' .. tostring(d.replication.stage)) end
+  if d.manufacture then printError('HALTED manufacturing stage: ' .. tostring(d.manufacture.phase)) end
   if d.miner then require('miner').status() end
 end
 
@@ -55,6 +56,24 @@ local ok, err = pcall(function()
     print('Recovered: aborted survey had no recorded movement.')
   elseif command == 'rebase' then
     require('miner').rebase()
+  elseif command == 'materials' then
+    require('factory').needs()
+  elseif command == 'collect' then
+    require('factory').collect()
+    print('Staged inventory retrieved from chest')
+  elseif command == 'factory-abort' then
+    require('factory').abort()
+  elseif command == 'make' then
+    require('factory').make()
+  elseif command == 'produce' then
+    -- The same crafting pipeline plus our already-verified lab cloning sequence.
+    -- Requires a clear disk drive at front and deployment cell behind.
+    state.assertSafe()
+    assert(not state.data.replication, 'Replication still in progress')
+    assert(peripheral.hasType('front', 'drive') and not disk.isPresent('front'),
+      'Face an EMPTY disk drive before running produce')
+    local crafted=require('factory').make()
+    if crafted then require('replicate').lab() end
   elseif command == 'auto' then
     state.data.autonomyEnabled = true
     state.save()
@@ -73,7 +92,7 @@ local ok, err = pcall(function()
   elseif command == 'resume' then
     require('replicate').resume()
   elseif command == 'help' then
-    print('tg/main.lua status | probe | diagnose | recover | auto [tunnels] | stop | rebase | survey <1..12> | install [drive-side] | replicate | resume')
+    print('tg/main.lua status | materials | make | produce | collect | factory-abort | probe | diagnose | recover | auto [tunnels] | stop | rebase | survey <1..12> | install [drive-side] | replicate | resume')
   else
     error('Unknown command. Run: tg/main.lua help')
   end
