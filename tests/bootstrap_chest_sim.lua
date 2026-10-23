@@ -155,6 +155,7 @@ local ok,reason=pcall(w.run,'controller:1')
 assert(not ok and tostring(reason):find('chest'))
 assert(born==0 and st.data.birth==nil)
 put('minecraft:chest',1)
+consume('minecraft:oak_planks',8) -- initial mixed kit needs only 14 planks
 assert(w.run('controller:1')==true)
 assert(born==1)
 assert(world.bottom=='minecraft:chest')
