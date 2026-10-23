@@ -203,3 +203,27 @@ Implementation:
 7. **Chunk loading and expansion:** necessary for actual absence of player; test before declaring unattended success.
 
 **No more:** standalone experimental commands marketed as autonomy; repeated manual station resets; blind arbitrary mining patterns; redesigning the entire system every turn; building extra mods; adding controller/colony complexity until an empirical failure warrants it.
+
+## Player testing policy — minimize interruptions
+
+**The user is not the routine test harness.** Stop asking for one-command tests of isolated features after each code change, or repeatedly reinstalling versions following avoidable syntax, state or API mistakes.
+
+**Work I must validate without the player:**
+- Lua syntax checks and automated regression tests in CI, including installer/child file manifests.
+- Controller/backend unit and integration tests, protocol/task contracts, reconnect/retry, resource accounting, and simulated turtle execution.
+- Representative offline test worlds/mocks for inventories, crafting steps, movement, station placement, furnace output, reproduction and crash recovery.
+- Review of documented third-party APIs and compatibility assumptions before integration.
+- Release only after automated checks pass. Never call mock results an in-game success.
+- Automatically capture concise task status, error stage, environment observations and logs so that a failed in-game test gives a useful diagnosis instead of a list of manual troubleshooting commands.
+
+**When an in-game test is worth requesting:** only at a major milestone when the integrated feature is ready, or when an indispensable physical behavior cannot be validated any other way. Tests should have one short setup, one start command, and a visible, meaningful outcome. Prefer letting the turtle execute a multi-step sequence without intervention.
+
+**Proposed player-facing milestones:**
+1. **One-turtle controller + base + offspring:** from provided *raw* resources but no manually placed machinery, the turtle builds its own small base, processes materials, creates/programs/boots a child. That single run validates connectivity plus production, not ten individual probes.
+2. **Self-established base:** with a starting turtle and fuel, gather wood/cobble/sand, make chest/furnace/fuel, store resources and return home without prompts.
+3. **True reproduction:** turtle gathers every material, creates a child, and child participates independently.
+4. **Colony continuity:** multiple generations continue after normal restarts and while player is away, with verified chunk loading.
+
+If a milestone fails, use recorded telemetry to diagnose and fix it **before** requesting another in-game run. Only ask for a repeat if the correction specifically addresses the observed failure and passes preflight. Avoid changing the world's setup repeatedly just to accommodate brittle software.
+
+**What cannot be claimed without some in-game validation:** real mod integration, in-world physical placement, Minecraft inventory/peripheral quirks, server/chunk-load behavior. No promise that zero manual in-game tests can guarantee these work.
