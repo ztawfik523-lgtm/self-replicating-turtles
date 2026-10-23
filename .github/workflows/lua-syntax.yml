@@ -28,3 +28,5 @@ jobs:
         run: lua5.2 tests/workshop_sim.lua
       - name: Verify child controller inheritance and legacy compatibility
         run: lua5.2 tests/clone_worker_sim.lua
+      - name: Simulate chest bootstrap and complete birth from raw materials
+        run: lua5.2 tests/bootstrap_chest_sim.lua
