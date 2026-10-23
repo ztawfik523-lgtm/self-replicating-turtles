@@ -2,7 +2,7 @@
 
 Minecraft **1.20.1 Forge**, CC: Tweaked, Advanced Peripherals, Turtlematic.
 
-## Current status — 0.3.3
+## Current status — 0.3.4
 
 - **Verified in Minecraft:** mining, manufactured offspring from supplied components, parent programming and booting an offspring.
 - **Implemented and mock-tested (not yet verified in Minecraft):** furnace processing of raw iron, gold, cobblestone, sand and logs using temporary inventory storage.
@@ -97,20 +97,8 @@ On failure the station state is retained: `tg/main.lua status` displays the curr
 
 **Limitations:** Still requires carrying a chest item and fuel. The next dependencies are making a chest from harvested planks and acquiring the cobblestone/fuel without player assistance. No need to build permanent stations or route back to them.
 
-## v0.3.3: Station bootstrapping and disk drive
+## v0.3.4: release repair
 
-The portable station code can now bootstrap a chest directly from 8–64 same-type planks, with no other inventory items beyond a crafting table item to equip. This early-life constraint avoids losing gathered resources before storage exists; afterwards the turtle can carry the chest as normal. (This does **not** yet include an automated tree finder.)
+The previous station module was corrupted by an incomplete edit and could not be compiled. This release restores the earlier small portable-furnace station and removes unfinished `station-chest` and `station-drive` commands until they are implemented and tested. A GitHub Actions Lua syntax check now runs on subsequent pushes.
 
-After `tg/main.lua station iron` processes a batch and packs its empty stations, the turtle can construct its disk drive on site from either a carried drive or **7 stone + 2 redstone**:
-
-```sh
-tg/main.lua station-drive
-```
-
-The drive command uses the existing chest for recipe staging and, when necessary, dismantles only an **empty furnace** in front. The chest may be below already or supplied as an item. A disk drive remains installed until `tg/main.lua station-pack` is invoked after reproduction, or until the next phase of autonomous station management is implemented.
-
-This is unverified in Minecraft and not yet a self-sufficient lifecycle; it removes additional manually placed infrastructure dependencies.
-
-### Bootstrap order
-
-A turtle with mining and crafting upgrades can begin station construction by collecting planks, **before** filling its inventory with other materials, then running `tg/main.lua station-chest`. This crafts and places the first chest below it. Later `tg/main.lua station iron` or `tg/main.lua station-drive` can reuse that chest, and `tg/main.lua station-pack` will recover it. The command is designed for early automated invocation, not continuous manual setup.
+The `station iron` experiment requires a chest item and eight cobblestone (or a ready furnace) in the turtle's inventory, along with raw iron and coal. It places and packs its own blocks; it is still **untested in Minecraft**. Smelting with a manually positioned furnace/chest was successfully tested by the user.

@@ -1,0 +1,17 @@
+name: Lua syntax check
+on:
+  push:
+  pull_request:
+jobs:
+  syntax:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Lua 5.2 parser
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y lua5.2
+      - name: Compile-check every Lua file
+        run: |
+          set -e
+          find . -type f -name '*.lua' -print0 | xargs -0 -r -n1 luac5.2 -p
