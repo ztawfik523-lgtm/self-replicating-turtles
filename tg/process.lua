@@ -97,11 +97,72 @@ function M.probe()
   end)())
 end
 
+-- Recover a smelt based on real furnace/chest contents rather than a saved
+-- phase label. Safe to repeat after interruption; no new batch is created.
+function M.resume()
+  local jobState=state.data.processing
+  if not jobState then return true end
+  local furnace,chest=setup()
+  local recipe=assert(jobs[jobState.kind],'Unknown unfinished process')
+  local expected=recipe.output
+  local maxWait=30 -- seconds without smelting progress before pausing
+  local lastProgress=os.epoch('utc')
+  local lastInput=nil
+
+  print('Recovering unfinished '..jobState.kind..' smelt')
+  while true do
+    local product=furnace.getItemDetail(3)
+    if product then
+      assert(product.name==expected,
+        'Unexpected furnace output; leaving it untouched: '..product.name)
+      local moved=furnace.pushItems('bottom',3,product.count)
+      assert(moved>0,'Could not transfer furnace output to chest')
+      lastProgress=os.epoch('utc')
+    end
+
+    local input=furnace.getItemDetail(1)
+    if not input then break end
+    assert(input.name==jobState.input,
+      'Furnace input changed; leaving it untouched')
+    if not lastInput or input.count<lastInput then
+      lastProgress=os.epoch('utc')
+    end
+    lastInput=input.count
+
+    -- Let an existing furnace burn complete. If it runs out of fuel,
+    -- return a retryable pause rather than requiring manual state resets.
+    if os.epoch('utc')-lastProgress>maxWait*1000 then
+      return false,'Furnace stopped smelting; add fuel and run station again'
+    end
+    sleep(0.5)
+  end
+
+  for _,slot in ipairs({3,2}) do
+    local item=furnace.getItemDetail(slot)
+    if item then
+      local moved=furnace.pushItems('bottom',slot,item.count)
+      assert(moved==item.count,'Cannot retrieve leftover furnace item')
+    end
+  end
+  if not noItems(chest) then
+    getBelow(chest)
+  end
+  state.data.processing=nil
+  state.save()
+  log.event('processed_recovered',jobState.kind)
+  print('Unfinished smelt reconciled and items retrieved')
+  return true
+end
+
 function M.run(kind)
   local job=assert(jobs[kind], 'Use: process iron|gold|stone|glass|charcoal')
   state.assertSafe()
   assert(not state.data.manufacture,'Finish or abort manufacturing before processing')
-  assert(not state.data.processing, 'Interrupted processing exists; inspect furnace/chest first')
+  if state.data.processing then
+    local ok, reason=M.resume()
+    if not ok then error(reason) end
+    return true
+  end
   local furnace,chest=setup()
   assert(noItems(furnace), 'Furnace is not empty; clear it before processing')
   assert(noItems(chest), 'Chest is not empty; run collect or empty it first')
