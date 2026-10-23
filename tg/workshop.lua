@@ -277,6 +277,9 @@ local function preflight()
  assert(#needs==0,'Missing first-birth inputs: '..table.concat(needs,'; '))
 end
 function M.run(jobId)
+ -- Crash-safe exactly-once completion for a controller-assigned birth:
+ -- the worker's own journal may still say "started" after child startup.
+ if jobId and state.data.lastBirthJob==jobId then return true end
  state.assertSafe()
  assert(not state.data.manufacture,
     'Existing partial factory craft requires inventory reconciliation')
@@ -290,6 +293,7 @@ function M.run(jobId)
  if state.data.birth and state.data.birth.childrenBefore
      and (state.data.children or 0)>state.data.birth.childrenBefore then
   -- Child already booted before the controller/journal recorded completion.
+  state.data.lastBirthJob=jobId or state.data.birth.jobId
   state.data.birth=nil
   state.save()
   return true
@@ -325,6 +329,7 @@ function M.run(jobId)
  assert(not state.data.replication,'Interrupted clone needs dedicated recovery')
  replicate.lab()
  phase('complete')
+ state.data.lastBirthJob=jobId or state.data.birth.jobId
  state.data.birth=nil
  state.save()
  turtle.select(prev)

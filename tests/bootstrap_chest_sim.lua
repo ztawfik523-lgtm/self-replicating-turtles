@@ -157,4 +157,8 @@ assert(world.bottom=='minecraft:chest')
 assert(world.front=='computercraft:disk_drive')
 assert(st.data.birth==nil)
 assert(count('minecraft:oak_planks')==0)
+-- The worker can lose its final journal write after a successful birth.
+-- Re-running the same job ID must acknowledge completion, not clone again.
+assert(w.run('controller:1'))
+assert(born==1)
 print('PASS: seven raw material stacks -> first chest -> furnace/drive -> offspring')
