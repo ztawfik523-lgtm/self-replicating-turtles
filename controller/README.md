@@ -23,4 +23,6 @@ chest before resource gathering fills the turtle.
 Initial mock kit: 1 chest item; 22 cobblestone; 7 raw iron; 3 redstone; 6 sand;
 3 diamonds; 14 matching planks; 8 coal or charcoal; equipped mining+crafting
 upgrades. No pre-positioned infrastructure. This is not a self-sustaining build,
-and worker inheritance/controller registration is not yet integrated.
+and worker inheritance/controller registration has now been implemented
+with controller-config propagation and simulated child registration. The entire
+combined workflow is still unverified **in Minecraft**.

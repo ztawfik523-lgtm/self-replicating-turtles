@@ -79,3 +79,19 @@ def test_first_birth_is_single_high_level_job(tmp_path):
     assert next_job(rec)[0]=="birth"
     rec.last_snapshot["inventory"][1]["count"]=21
     assert next_job(rec) is None
+
+@pytest.mark.asyncio
+async def test_child_registers_without_replacing_parent(tmp_path):
+    host=Host(tmp_path/"state.json")
+    async with serve(host.handle, "127.0.0.1", 0) as server:
+        port=server.sockets[0].getsockname()[1]
+        async with connect(f"ws://127.0.0.1:{port}") as parent:
+            await parent.send(json.dumps(hello()))
+            assert json.loads(await parent.recv())["type"]=="welcome"
+            child={"type":"hello","id":8,"generation":2,
+                "snapshot":{"fuel":320,"inventory":[]},"journal":{}}
+            async with connect(f"ws://127.0.0.1:{port}") as ws:
+                await ws.send(json.dumps(child))
+                assert json.loads(await ws.recv())["type"]=="welcome"
+    assert set(host.colony.turtles)=={7,8}
+    assert host.colony.turtles[8].generation==2

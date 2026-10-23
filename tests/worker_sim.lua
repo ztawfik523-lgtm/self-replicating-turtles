@@ -19,4 +19,19 @@ assert(one.ok and one.data.fuel==100)
 assert(files['/tg/worker-job.dat'])
 assert(w.handle({id='7:1',action='observe'}).ok)
 assert(not w.handle({id='7:2',action='unknown'}).ok)
-print('PASS: Lua worker deduplication and inventory snapshot')
+local births=0
+package.loaded.workshop={run=function(jobId)
+ assert(jobId=='7:3')
+ births=births+1
+ return true
+end}
+local job={id='7:3',action='birth',args={}}
+local result=w.handle(job)
+assert(result.ok and births==1)
+assert(w.handle(job).ok and births==1,'Birth was accidentally repeated')
+-- Simulate power failure while the birth job is underway.
+local paused={id='7:3',status='started',action='birth',args={}}
+_G.saved=paused
+files['/tg/worker-job.dat']='state'
+assert(w.handle(job).ok and births==2,'Interrupted birth was not retried')
+print('PASS: Lua worker snapshot, idempotency and interrupted birth resume')

@@ -75,3 +75,16 @@ A single Mining + Crafting Turtle starts with an initial fuel supply in an ordin
 - Distinguish **in-game verified**, **mock-tested**, **implemented but untested**, and **not yet implemented**.
 - If a milestone fails, use logs to identify cause and fix it before considering another user run.
 - No custom mod. External controllers, third-party scripts, software adaptations and standard mod addons are all allowed.
+
+## Development record — first-birth integration slice (2026-10-23)
+
+**Implemented in source, not deployed to the player's turtle:**
+- Python planner identifies the full starter material kit and queues exactly one `birth` task.
+- `tg/workshop.lua` composes chest placement, furnace crafting/placement, iron+stone+glass smelting, glass panes, disk drive, offspring factory, initialization, filesystem cloning, fuel, deployment and boot.
+- New worker can resume an interrupted birth task by journal ID, and the workshop tracks child count to avoid manufacturing a duplicate after a completed birth.
+- Controller connection information, experimental worker, workshop, and worker-entry are inherited into controller-enabled offspring. Legacy clones without controller config continue to use legacy boot.
+- Parent/child registration, WebSocket command execution, Python planning and in-memory Lua workshop/restart simulations are now part of automated checks.
+
+**Still missing before first player milestone:** an actual mod/game integration run (which is deferred until the integration is ready as a single worthwhile test); test of the built-in CC:Tweaked physical inventory and crafting interaction as one complete chain; fixing power failure during partial child deployment; complete installer/manifest update for new runtime; robust starter chest crafting from an empty-inventory wood bootstrap. The present first-birth simulation starts with **one chest ITEM** in inventory, not a prebuilt placed chest. No one should claim self-sustaining gathering or finished multi-generation autonomy based on these mocks.
+
+**No player installation/test requested for this slice.**
