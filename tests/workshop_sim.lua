@@ -121,6 +121,6 @@ print('PASS: interrupted birth resumes from observed contents')
 w,state=fixture(supplies)
 items['minecraft:chest']=0
 local ok,err=pcall(w.run)
-assert(not ok and tostring(err):find('chest'))
+assert(not ok and tostring(err):find('planks'))
 assert(state.data.birth==nil)
 print('PASS: invalid starter kit leaves state untouched')
