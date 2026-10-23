@@ -302,7 +302,7 @@ function M.rebase()
   d.pending=nil
   d.pose={x=0,y=0,z=0,dir=0}
   d.miner={
-    running=false, stopRequested=false, stage='tunnel', targetY=0,
+    running=false, stopRequested=false, stage='descend', targetY=-16,
     level=1, radius=8, heading=0, home={x=0,y=0,z=0,dir=0},
     trip=nil, ore=old.ore or 0, passes=old.passes or 0,
     reason='re-anchored at current physical position',
