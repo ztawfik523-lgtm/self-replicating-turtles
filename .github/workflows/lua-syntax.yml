@@ -30,3 +30,5 @@ jobs:
         run: lua5.2 tests/clone_worker_sim.lua
       - name: Simulate chest bootstrap and complete birth from raw materials
         run: lua5.2 tests/bootstrap_chest_sim.lua
+      - name: Simulate controller installer success, staging failure and rollback
+        run: lua5.2 tests/controller_installer_sim.lua
