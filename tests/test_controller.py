@@ -127,3 +127,14 @@ def test_completed_birth_refreshes_snapshot_before_followup(tmp_path):
     assert db.complete(7,job.id,result)
     assert rec.last_snapshot["children"]==1
     assert next_job(rec) is None
+
+def test_controller_accepts_raw_wood_without_starter_chest(tmp_path):
+    db=Colony(tmp_path/"db.json");rec=db.register(hello())
+    raw={"minecraft:cobblestone":22,"minecraft:raw_iron":7,
+      "minecraft:redstone":3,"minecraft:sand":6,"minecraft:diamond":3,
+      "minecraft:oak_planks":22,"minecraft:coal":8}
+    rec.last_snapshot={"front":None,"bottom":"minecraft:dirt",
+      "inventory":[{"name":k,"count":n} for k,n in raw.items()]}
+    assert next_job(rec)[0]=="birth"
+    rec.last_snapshot["inventory"][5]["count"]=21
+    assert next_job(rec) is None
