@@ -2,7 +2,7 @@
 
 Minecraft **1.20.1 Forge**, CC: Tweaked, Advanced Peripherals, Turtlematic.
 
-## Current status — 0.3.4
+## Current status — 0.3.5 (candidate, not yet released)
 
 - **Verified in Minecraft:** mining, manufactured offspring from supplied components, parent programming and booting an offspring.
 - **Implemented and mock-tested (not yet verified in Minecraft):** furnace processing of raw iron, gold, cobblestone, sand and logs using temporary inventory storage.
@@ -102,3 +102,7 @@ On failure the station state is retained: `tg/main.lua status` displays the curr
 The previous station module was corrupted by an incomplete edit and could not be compiled. This release restores the earlier small portable-furnace station and removes unfinished `station-chest` and `station-drive` commands until they are implemented and tested. A GitHub Actions Lua syntax check now runs on subsequent pushes.
 
 The `station iron` experiment requires a chest item and eight cobblestone (or a ready furnace) in the turtle's inventory, along with raw iron and coal. It places and packs its own blocks; it is still **untested in Minecraft**. Smelting with a manually positioned furnace/chest was successfully tested by the user.
+
+## v0.3.5 recovery behavior (candidate)
+
+An interrupted station job now reconciles saved progress with the actual chest and furnace, tries to recover any unfinished smelt, and reclaims empty equipment placed by the program. Normal recovery should not require deleting any flag or giving manually prepared materials. This is still a narrowly scoped recovery patch; it does not implement the future continuously running production/replication lifecycle. Do not consider it verified in Minecraft until the integration test passes.

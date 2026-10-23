@@ -110,6 +110,7 @@ local chest={list=function()return {} end,pushItems=function()return 0 end}
 peripheral={wrap=function(side)
   return side=='front' and furnace or chest
 end}
+if not os.epoch then os.epoch=function() return 0 end end
 local processor=dofile('tg/process.lua')
 assert(processor.resume()==true)
 assert(package.loaded.state.data.processing==nil,

@@ -15,3 +15,5 @@ jobs:
         run: |
           set -e
           find . -type f -name '*.lua' -print0 | xargs -0 -r -n1 luac5.2 -p
+      - name: Run recovery regression tests
+        run: lua5.2 tests/recovery.lua
