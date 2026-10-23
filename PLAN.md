@@ -1,211 +1,205 @@
-# Turtle Genesis: Unattended Self-Replication Plan
+# Turtle Genesis — Engineering Plan v3
+Updated: 2026-10-23
+Project: Minecraft 1.20.1 Forge + CC: Tweaked, Advanced Peripherals, Turtlematic and other existing addons as useful
+Goal: autonomous, repeatable survival-world reproduction from an initial turtle.
+Rule: no Minecraft mod or game-specific API written for this project. An external Python service, existing programs, and modifications to those programs are allowed.
 
-Status: design plan, not an implementation claim. Last reviewed 2026-10-23.
-Target: Minecraft 1.20.1 Forge, CC: Tweaked, existing established addons (Advanced Peripherals, Turtlematic and other appropriate pre-existing tools).
-Constraint: **No Minecraft mod, fork, or special API written specifically for Turtle Genesis.** External software/controllers are allowed when they provide a measurable advantage.
+## Executive design decision
 
-## 0. Objective and contract
+**Recommended starting architecture:** one external Python controller + a small Lua turtle runtime + one persistent starter base. Prefer existing controller and turtle libraries over rewriting them. This is a *testable selection*, not a license to rewrite the project before working functionality is preserved.
 
-A single starting Mining + Crafting Turtle, with Genesis software and a reasonable initial fuel supply, is placed in a normal survival world. It must operate without further commands or manually positioned chests, furnaces, drives, ores or offspring. Success is:
+Python: colony goal scheduling; recipe/resource dependency ledger; persistent map, worksite and task assignment; diagnostics; planning across turtles.
+Lua: perform bounded physical jobs; inspect/report blocks and inventories; enforce local fuel/return guard; checkpoint non-idempotent actions; finish/stop safely on network loss; reconnect automatically.
+Minecraft: source of truth for physical state. Controller must not assume hidden world data it hasn't received through legitimate turtle/peripheral observations.
+Base: known home, reusable chest/storage, furnace, drive for offspring filesystem initialization, safe deployment area, mine and wood access. No unnecessary building or station packing.
 
-1. Construct necessary infrastructure from materials it harvests or mines.
-2. Gather and process its own reproduction inputs in survival.
-3. Craft, initialize, program, fuel, place and start a child.
-4. Observe the child carrying out the same lifecycle independently.
-5. Continue while resources, world generation, and server conditions permit.
+The first turtle must be able to do all necessary jobs. Specialization begins only after multiple turtles exist. Newborn turtles receive the same worker code and register with the controller automatically. The controller is allowed to become essential to ongoing planning; reliability on disconnect is a required design goal, not a reason to prohibit external coordination.
 
-Continuous means *the software maintains a goal-directed loop whenever the turtle is running*, not that an unloaded chunk or stopped Minecraft server magically executes Lua. Long-term unattended operation requires a verified existing chunk-loading method.
-
-**Two explicit test modes:** (A) integration mode starts with raw ingredients in inventory but *no prebuilt facilities*; (B) autonomy mode starts with only the equipped parent and initial fuel. Passing (A) is not evidence of passing (B). Do not repeatedly request player setup after the initial placement.
-
-Do not promise indefinite population growth in a finite world. Trees can support renewable fuel; iron, diamonds and redstone require access to new finite deposits unless existing mods supply a legitimate renewable source. The attainable objective is continuing expansion under sufficient available world resources.
-
-## 1. What actually works (ground truth)
-
-**In-game verified:**
-- One turtle manufactured an offspring from supplied components via `produce`.
-- Child item initialization, disk-drive filesystem inheritance, placement, boot and generation increment.
-- Furnace smelting of iron and transferring the output back through the chest.
-
-**Not yet established:** a single autonomous lifecycle, first chest from gathered logs, furnace/drive built and placed automatically, autonomous ore/fuel acquisition, navigation from surface to deep ore layers, reliable reboot/chunk-load recovery, child reproducing independently, and colony management.
-
-**Immediate defects/debt:** `startup.lua` currently dispatches a boot command, but independent tasks are not joined into one reproduction planner. Old mining follows an inefficient preselected pattern. `state.assertSafe` and old station guards can lock out a physically recoverable system. Crafting relies on staging to a chest. Child seed auto currently triggers the older mining path, not a complete lifecycle. Preserve the verified recipes and cloning mechanics; rewrite the glue.
-
-## 2. Design: one agent, physical observations, minimal persistent intent
+### Diagram
 
 ```text
-startup
-  -> initialize/restore agent
-  -> repeat while running
-       observe: inventory + adjacent blocks + fuel + local map + optional scan
-       reconcile unfinished action with the world
-       update needs for reproduction and survival
-       choose highest-value achievable subgoal
-       perform one/bounded batch of physical actions
-       verify effects; update map and progress; yield
-     end
+                      PYTHON CONTROLLER
+           goals / resource ledger / map / scheduler
+                              |
+                    WebSocket / RPC
+                              |
+           +------------------+------------------+
+           |                  |                  |
+     Turtle worker 1    Turtle worker 2    Turtle worker N
+     local safety       local safety        local safety
+     movement/craft     gathering           expansion
+           \                  |                  /
+            -------- SHARED BASE / STORAGE -------
+                 furnace / disk drive / stock
 ```
 
-Suggested modules:
-- `agent.lua`: main loop and priority choice
-- `needs.lua`: recipe/dependency graph and material accounting (inventory **plus** local storage)
-- `world.lua`: bounded local map, discovered resource sites, path and home/worksite location
-- `navigate.lua`: planning, safe motion, obstruction handling, return/home strategy
-- `gather.lua`: wood, fuel, stone, sand and ores (one policy, different tasks)
-- `industry.lua`: existing smelting, crafting and workstation actions, driven by goals
-- `reproduce.lua`: existing manufacture/clone/deploy methods as reusable actions
-- `journal.lua`: small, durable intent records for actions whose partial completion matters
-- `comms.lua` (optional): monitoring/coordination; no dependency in early milestones
+## Starting conditions and target
 
-These are *conceptual responsibilities*, not an instruction to create ten large modules immediately. Start small and refactor only where necessary. Prefer continuous replanning over a long scripted sequence that collapses on the first unexpected block.
+**Integration test (first):** One equipped mining+crafting turtle with raw materials *in its inventory* (and enough initial fuel) but **no pre-positioned furnace, chest or disk drive**, no human task commands beyond start. Objective: build worksite, process resources, craft/program/place/start a child. The first turtle and controller may still be manually provisioned with starting resources; this only validates automation plumbing.
 
-Priority policy: imminent loss of movement/fuel > safe inventory management > recover interrupted action > satisfy a reproduction material deficit > manufacture/clone/deploy > explore new resource locations. If an action is blocked, record why, switch to another feasible task, or relocate. Avoid unbounded repeated failures. Do not discard blocks that are needed in the bill of materials.
+**True autonomy test (later):** One equipped turtle, modest starting fuel and installed worker, in an ordinary survival world, plus a running controller/server. No player-provided resource piles, existing workshop, GPS network or placed fuel/ore. It must gather what it needs to build a base and reproduce. The child must also gather/reproduce, perhaps using shared or newly built infrastructure.
 
-**Persistent memory:** generation/parent, local or world pose when justified, home/worksite coordinates, durable discoveries, limited action intent (e.g. child in drive, craft whose output may already exist). Recover by inspecting blocks/inventories first. No phase flag should act as an unconditional manual-reset lock. Interrupted movements genuinely can be ambiguous without external positioning; use GPS if available, a consistent route/landmark scheme otherwise, and bounded local reconciliation instead of pretending ambiguity does not exist.
+A server restart or chunk unload means software may stop executing until loaded again. Existing chunk-loading solutions must be tested in the actual modpack before claiming unattended operation. "Continuous" means repeating goals when executable, not infinite Minecraft execution in unloaded chunks.
 
-**Inventory discipline:** reserve enough free space for tools/collected drops; support material stacks split over chest and turtle; first storage chest is special and must be bootstrapped before the turtle clutters all 16 slots. No action should require the player to empty 16 slots.
+## Core approach: assemble the system from existing code
 
-## 3. Critical material and infrastructure dependency chain
+| Priority | Source | Potential use | Integration decision |
+| --- | --- | --- | --- |
+| 1 | https://github.com/neumond/python-computer-craft | Python-side CC API over a Lua bridge; quickest Python-controller experiment | Test one physical move/inspect/inventory/task with reconnection. If robust, reuse rather than writing a bridge. |
+| 2 | https://github.com/SPOOKEXE/computercraft-turtle-botnet | Python WebSocket controller, task/behavior framework, serialization, resource/recipe ideas | Review and reuse pieces where better than Pythonized CC; archived and not a demonstrated completed self-replicator. Avoid merging both frameworks blindly. |
+| 3 | https://github.com/fnuecke/lama | Local position and movement recovery, including fuel-based reconciliation | Prototype as **single** movement/refueling authority, or choose an alternative. No parallel nav trackers. |
+| 4 | https://github.com/helpmyRF24isntworking/computercraft | Mapping, existing advanced miners, home unloading, efficient mining jobs | Its complete system assumes modems and GPS; inspect whether standalone mining/mapping can be reused or adapted. |
+| 5 | https://github.com/Equbuxu/mine | Existing local ore vein/mining/fuel/unloading techniques | Consider borrowing algorithmic strategy or replacing the old miner with adapted code. |
+| 6 | https://github.com/Tjstretchalot/turtles2 | Restart-friendly movement, tree farming and mining | Focus on forestry/waypoint concepts if compatible; don't graft its entire framework over ours automatically. |
+| 7 | https://github.com/egor-oleg/aegis-autocraft | Sophisticated recursive manufacturing using CC storage networks | Defer; may be valuable at scale, but its wired network and staging requirements are far more than a first base needs. |
+| Later | Advanced Peripherals Geo Scanner / Turtlematic | Ore scanning, chunk loading, specialized interactions | Validate actual APIs, crafting/FE cost and 2-slot turtle upgrade conflicts before depending on them. |
 
-A practical full reproduction budget extends beyond the current `factory.needs()`, which only checks the offspring recipe *after* facilities exist.
+**Selection rule:** Test a candidate on an isolated turtle/world first. Select ONE command bridge, ONE movement authority, ONE mining executor; compose them behind a small interface, rather than accumulating competing libraries. A script from another project is an interchangeable executor, not necessarily our entire architecture.
 
-| Goal | Base ingredients to plan for | Notes |
-| --- | --- | --- |
-| Child turtle + diamond mining/crafting upgrades | 14 same-type planks, 7 iron ingots, 7 stone, 1 redstone, 1 glass pane, 3 diamonds, 4 coal/charcoal for child | Verified manufacturing recipe; fuel also needed for parent |
-| First reusable work chest | 8 additional planks | Bootstrap using logs -> planks -> chest while inventory is sparse |
-| Furnace | 8 cobblestone | Reuse in established worksite; do not repeatedly pack |
-| Disk drive | 7 stone + 2 redstone | Reusable across births; this is missing from the factory's displayed material requirements |
-| Glass pane | 6 sand -> 6 glass -> 16 panes | Produces spare panes for subsequent children |
-| Stone inputs | 14 stone total for computer + disk drive | Smelt cobblestone without silk touch: requires 14 further cobblestone, additional smelting fuel |
-| Ongoing fuel | Logs/planks -> charcoal; coal where available | Avoid bootstrap deadlock: a furnace can burn wood/planks before any coal is found |
-| Subsequent births | Offspring inputs and starter resources | Parent does not need to rebuild reusable infrastructure for every child |
+### Minimal controller ⇔ turtle protocol
 
-Therefore, a first-generation worksite needs about **22 cobblestone** for an eight-cobble furnace and fourteen smelted-stone inputs (plus optional extra), at least **3 redstone** across turtle+drive, **7 iron ingots**, **3 diamonds**, **6 sand** for glass panes, wood for chest/offspring/charcoal, and sufficient movement/smelting/offspring fuel. These are planning quantities, not a promise that the initial mining setup supplies everything. A child or colony may share inherited manufacturing facilities rather than create a new disk drive per birth.
+Define these capabilities (not one Lua script per call):
+- `snapshot()`: ID, generation, selected upgrades, fuel, inventory, location estimate, nearby observations, worksite/job status.
+- `move_to(goal)`: bounded local path, obstacles, remaining fuel and stop/retry reason.
+- `gather(resource, budget, region)`: tree/stone/sand/ore collection using tested local programs.
+- `deposit(base)`: put gathered materials into assigned storage; retrieve essentials.
+- `process(recipe, count)`: furnace job using available fuel and input, return consumed/produced.
+- `craft(recipe/count)`: verify inventory and output; safe chest staging.
+- `reproduce()`: use existing validated factory + initialized disk-drive cloning + placement + boot.
+- `inspect/status`, `cancel/stop`, and `reconnect/resume`.
 
-## 4. Milestones and gates (in order)
+Prefer **high-level bounded jobs** to network commands for every block. Each job reports `started/progress/succeeded/blocked/failed` and physical changes. Use monotonic job IDs and resumable job state; the controller must not blindly dispatch a duplicate craft or birth after reconnect.
 
-### M0 — Stop regressions, establish an executable baseline
+A temporary network outage should leave the turtle finishing its current safe bounded job or waiting/retrying, not wandering indefinitely. A controller restart restores the task queue and reconciles inventory/real-world state.
 
-- Keep verified recipes and cloning code unchanged unless a concrete test fails.
-- Remove/disable unrelated unfinished workstation commands and the old automatic blind-mining path for the new agent.
-- Automated CI: compile *every* Lua file, run physics/inventory mocks, test installer/clone manifests and version pins, prohibit release on red CI.
-- Build a deterministic fake-world harness that models turtle movement, inventories, placement, smelting, chunk unloading and restart.
-- Core regression: if smelting finished but the state says otherwise, the agent collects/continues without human `process-reset`.
+### State is not a permission lock
 
-**Gate:** clean deployment, successful test suite, and a startup that does not return to an obsolete miner by default.
+Persist: turtle ID/generation, base/route information, map discoveries, active job ID, a minimal journal only around irreversible or ambiguous actions (moving, crafting, placing a turtle, deploying a drive). Reconstruct physical results by inspection after a reboot or reconnect. An empty furnace and completed output are success, not an error state.
 
-### M1 — Closed-loop reproduction with supplied *raw* resources (no placed facilities)
+Movement is the special case: if a restart occurs during a move, block inspection alone cannot always recover exact pose. Evaluate LAMA's fuel-based approach, GPS if legitimately available, or robust local landmark/home tracking. Test forced restart mid-action, not just normal completion.
 
-- Single `genesis start` agent entrypoint.
-- Automatic selection/placement/reuse of chest, furnace and disk drive; craft the missing infrastructure from *carried* primitive materials.
-- Smelt iron and stone, make glass and pane, manufacture offspring, initialize/program/fuel/place/boot child.
-- Do not manually invoke `process`, `station`, `make`, `produce` in between.
-- Parent remains active after the child is born; child uses the *same* new startup agent.
-- Use bounded action batches and inspect resulting physical inventories so rebooting cannot duplicate production.
+## The base design: minimum viable workshop
 
-**Gate:** a single command, no manually positioned machinery, actual in-game birth and boot; then independently confirm the child performs the agent's next meaningful work step. This gate tests integration, **not autonomous gathering**.
+One known location, simple enough for one turtle to build:
+- **Storage** in a chest or barrel, initially one, expanded if useful; resource ledger counts contents plus turtle inventories.
+- **Furnace** and renewable fuel loop. Leave installed; rebuild only if necessary.
+- **Disk drive** when first reproduction is possible. One drive can serve multiple births.
+- **Safe approach/departure, child deployment spot**, and a return route.
+- **Optional wood area / mine entrance**, not a required elaborate structure.
 
-### M2 — Wood, basic building material and renewable fuel
+Start with the current working geometry where practical: chest below turtle and furnace/drive placed/changed in front. The turtle may need to recover an empty front block to swap from furnace to drive. Do not tear down permanent components unnecessarily. Base locations and inventories must be discoverable and restorable after a reboot.
 
-- From logs: planks, first chest, replenish wood, charcoal; reserve saplings for planting when appropriate.
-- Harvest trees using reachable trunks, collect dropped logs/saplings, avoid orphaned floating items; replant and periodically revisit. Seed location or terrain can affect success; do not claim guaranteed forestry in every biome.
-- Mine accessible cobblestone/stone and sand, build a stationary reusable furnace/chest; clear storage by organizing materials instead of discarding them.
-- Smelter should support planks/logs and charcoal, not just supplied coal.
-- Establish a known home/worksite and bounded exploration.
+The initial base is a **hub, not a prison**. Children can contribute from shared storage and later found nearby outposts. Don't implement distributed colony coordination before a second turtle can use the first base.
 
-**Gate:** start with fueled turtle near normal forest/stone terrain; make first chest/furnace and maintain a positive fuel budget without the player.
+## Resource dependency engine (single ledger)
 
-### M3 — Useful mining and full material acquisition
+Controller computes resource shortages using actual inventory **and storage**, then selects the cheapest feasible action.
 
-- Target deficits, not arbitrary tunnel distance. Coal/wood for fuel, iron for turtle body, redstone for computer/drive, diamonds for pickaxe, sand for pane.
-- Search terrains by likely resource layer and observed block/ore information. Develop safe paths between home, mine and surface.
-- Implement bounded surveying, cave-risk handling, inventory return, ore pickup validation, low-fuel return threshold. Never intentionally mine own storage or infrastructure.
-- Evaluate an **existing** Advanced Peripherals Geo Scanner/geoscanning upgrade only if the actual installed version, energy requirements, upgrade-slot swapping, and acquisition path are compatible. It is an optimization, not a magically free starting sensor.
-- Distinguish resource not found yet from resource mechanically unreachable; relocate worksite if exhausted.
+Verified offspring craft bill from our repo: 14 same-type planks, 7 stone, 7 iron ingots, 1 redstone, 1 glass pane, 3 diamonds, 4 coal/charcoal delivered to child. These are *not* the complete raw-world prerequisites.
 
-**Gate:** turtle obtains **all** of one reproduction's ores/materials from generated terrain, processes them, and returns them to its workshop. Test separate seeds/biomes and deep-layer navigation. No preloaded ores.
+First base additionally needs:
+- 8 planks for initial chest (or a separate chest obtained elsewhere).
+- 8 cobblestone for furnace.
+- 7 extra smelted stone + 2 extra redstone for disk drive, using the recipe actually present in our repo.
+- Sand/glass smelting and six-glass-to-sixteen-glass-pane crafting.
+- More coal/wood/charcoal for *parent* movement, smelting and repeated offspring, not just four items in the child.
+- Wood for an initial crafting table upgrade if not already equipped.
 
-### M4 — Repeat reproduction autonomously
+A first worksite thus needs at least roughly 22 cobblestone for furnace and 14 stone inputs, 3 redstone for computer+drive, 7 iron ingots, 3 diamonds, six sand for the first glass-pane batch, planks, and continuing fuel. Verify all crafting recipes in this Minecraft/mod build before assuming the bill is complete. Infrastructure is **reusable**, so later births are cheaper.
 
-- Agent checks a complete dependency bill, accumulates resources, reuses infrastructure, runs proven manufacturing+child initialization+clone+boot sequence.
-- Offspring starts automatically and receives enough fuel/software to begin gathering; parent continues.
-- Avoid collision: designate distinct mining zones/worksites or lightweight claims, and keep spawn/deployment cells clear.
-- Recover interrupted manufacturing/drive insert/deployment based on physical evidence; count births exactly once.
+Bootstrap order prevents cyclic dependencies:
+1. Refuel safely from the original reserve.
+2. Gather wood; make plank/crafting capacity and first chest **before** a full miscellaneous inventory.
+3. Establish home/storage, gather 8 cobblestone and place furnace.
+4. Burn wood/planks initially if coal unavailable; make charcoal, save enough fuel to return from trips.
+5. Obtain sand/glass and access to mines.
+6. Mine iron/redstone/diamonds by need, store resources in chest; process iron/stone/glass.
+7. Make the drive and offspring when the full bill is satisfied; transfer worker code, fuel and boot.
+8. Loop, share/replenish materials and expand when resources or space require it.
 
-**Gate:** begin from **one** turtle with only starter fuel; parent produces a child, then a child autonomously produces a grandchild, with no player assistance.
+**Do not waste a complete furnace cycle to test the same component again.** We already verified iron smelting and offspring manufacture/boot individually. Integration is the remaining test.
 
-### M5 — Colony robustness and scaling
+## Milestones: work and acceptance gates
 
-- Ensure appropriate chunks stay ticking when player moves away. Test the exact installed chunk-loader addon and whether its turtle upgrade conflicts with mining/crafting upgrades. Confirm reboot behavior explicitly.
-- Optional external supervisor (Python/CC computer/WebSockets/HTTP): monitor logs, plan exploration, assign non-overlapping territories, share maps. It is allowed. Decide after measuring whether it improves exploration/collisions/reliability enough to justify continuous service and communication/upgrade overhead.
-- Add fuel budgeting, stalled-agent watchdog, task backoff, aging/abandoned worksites, resource storage and redistribution, throughput metrics.
-- Test unloaded/reloaded chunks, server reboot, death/obstruction, missing peripherals, limited fuel, full inventory, and two turtles competing for resources.
+### P0 — Pick the software foundation
+Implementation:
+- Snapshot working factory/process/clone version, keep reproducible world.
+- Try Pythonized ComputerCraft with ONE turtle: controller starts, retrieves live inventory+fuel/inspect, assigns a bounded task, observes result.
+- Force client/controller restart and recover the connection; validate multiple outstanding task protections.
+- If it fails reliability requirements, adapt the MIT BotNet worker/WebSocket architecture. Avoid writing a replacement bridge until both are evaluated.
+- Validate LAMA separately for navigation across interrupt/refuel; choose one tracker.
+- Build automated mock/harness with real example inputs and regression checks; syntax+behavioral CI before releases.
 
-**Gate:** unattended multi-generation population on several world seeds, with logs showing which turtles gathered what, where the resources went, why any failed, and whether reproduction continues after restarts.
+**Gate P0:** one host-to-turtle task completed, retried safely after interruption; launcher repeats startup automatically; no custom Minecraft mod. Mark what was checked in-game versus mocked.
 
-## 5. Technical constraints worth testing early
+### P1 — One-turtle base and autonomous manufacture (raw resources supplied)
+Implementation:
+- Controller identifies missing infrastructure and instructs turtle to build the small worksite.
+- Inventory/staging manager handles 16 turtle slots, chest, crafting grid and output stacks.
+- Use existing furnace + factory + clone rather than rewriting tested recipes.
+- Manage furnace/drive swap, full bill and resource accounting without manual commands.
+- Newborn registers to same controller via inherited worker bootstrap.
+- Release only after passing syntax, scenario/unit tests and a clean installer/child manifest.
 
-- **Only two turtle upgrade slots:** mining and crafting already occupy both. A geo scanner, modem or chunk-loader upgrade cannot be assumed simultaneously equipped. Use temporary swaps, external peripheral placement, a separate specialised turtle, or another established mod mechanism **after testing**.
-- **Scanner energy and cooldown:** Advanced Peripherals Geo Scanner has a scan cost/FE and cooldown. Confirm access and power; do not make the whole system depend on it without a bootstrap path.
-- **Chunk loading:** test the actual installed Turtlematic/Advanced Peripherals behavior in MC 1.20.1 Forge, including moving across chunk boundaries, reboot, and starting offspring. A controller does not make unloaded turtles run.
-- **GPS:** CC GPS requires loaded GPS hosts and a modem network. Useful when built, not a free absolute-position API for a lone turtle.
-- **Survival world variability:** diamond/redstone acquisition, high-versus-deep ore layers, hostile mobs, caves, lava, sparse trees and fuel exhaustion may cause failure; performance must be measured across seeds.
+**Gate P1:** one startup from raw inventory; NO player-placed furnace/chest/disk drive; automated smelt → craft → initialize → program → fuel → deploy → boot. Parent and child both reach ready state.
 
-## 6. Test and release discipline
+### P2 — Self-starting base, wood and fuel loop
+Implementation:
+- Adapt a tree harvesting/planting executor and return-to-home logic. First chest from harvested wood.
+- Gather cobblestone and sand. Build permanent chest+furnace with found resources.
+- Use wood as initial furnace fuel; produce charcoal, account for parent's movement reserve.
+- When inventory full, return/deposit; no item dumping if needed later.
+- Handle missing trees by searching/relocating within fuel bounds.
 
-1. Unit/regression tests for planners, material accounting, crafting slots and recovery.
-2. Simulated multi-operation run (interruption between **every** critical place/transfer/craft/boot).
-3. CI must pass before any release is recommended. Test syntax and behavior, not just parsing.
-4. Immutable pin and manifest consistency: installer and child must copy the same revision, including every new module.
-5. One in-game checkpoint per milestone. Report clearly: **verified in Minecraft**, **tested in simulation**, or **implemented but untested**.
-6. Collect terminal errors and a compact activity log; avoid turning ordinary blockers into a request for user action.
+**Gate P2:** supplied only initial fuel, turtle gathers wood/stone/sand, establishes its own storage and produces a net usable fuel reserve in-game. No raw-material supply by player.
 
-## 7. Sequence for the next implementation cycle
+### P3 — Deficit-driven ore mining
+Implementation:
+- Adapt existing ore/vein mining executors; stop predetermined blind-tunnel "auto" strategy.
+- Navigate down to appropriate depths safely, inspect/search and map traversable paths, carry limited loads back to base.
+- Mine iron, redstone, diamonds and coal if found; account for smelting, tool slots, drops, lava, caves, gravel and fuel.
+- Consider Geo Scanner only when available and affordable in the survival tech tree; Advanced Peripherals geo scanner costs FE/has cooldown and turtle only has two upgrade slots, so it's not a free capability.
+- Improve through comparative tests; avoid asserting all seeds are equally easy.
 
-1. Freeze the **in-game verified** factory/clone/smelter implementation and retain a reproducible test world.
-2. **Evaluate reusable code before creating replacements.** First: LAMA movement recovery, a mining task from existing projects, and the MIT-licensed Python/WebSocket BotNet architecture. Test feasibility separately before adoption.
-3. Choose a single movement/state authority; avoid combining incompatible tracking libraries.
-4. Wire a simple high-level agent/controller to the verified `process`, `factory`, and `replicate` behaviors. Add only missing glue. Decide whether the planner runs in Python or Lua based on an actual one-turtle prototype.
-5. Implement a reusable fixed worksite and complete resource bill (furnace/drive included). Prove **M1** without manually positioned facilities.
-6. Reuse/adapt working forestry and mining strategies for **M2/M3**, and add autonomous resource collection only where the borrowed approach falls short.
-7. Achieve **M4**: offspring follows the same lifecycle and generates a grandchild.
-8. Add scanners, optional centralized colony management and chunk loading where they measurably improve progress.
+**Gate P3:** on normal generated terrain, gather the COMPLETE bill for an offspring with no injected ores/ingots/diamonds/redstone, process/store them and return to base.
 
-**Design principle:** every addition must shorten the distance to the *next unattended birth* or remove a demonstrated cause of failure. Don't add recovery flags, a custom controller, scanner upgrade or portable station simply because they're technically interesting.
+### P4 — The first real autonomous offspring
+Implementation:
+- Same controller job scheduler autonomously decides when resources are sufficient.
+- Manufacture/program/deploy/boot a child through proven mechanisms.
+- Child inherits runtime and controller address, has suitable fuel, exits departure lane, gets a new resource task automatically.
+- Controller counts a birth exactly once and doesn't duplicate when recovering from disconnection.
 
-## 8. Borrow-first integration strategy (2026-10-23)
+**Gate P4:** start from one turtle with initial fuel; it gathers and creates one offspring. **Then the child participates without manual intervention.** Run a second sequence proving a grandchild is made without manually giving materials/commands. Sharing the original base is allowed; lineage must be genuine.
 
-**New principle:** Existing programs, libraries, forks and external tools are legitimate building blocks. We are allowed to modify, combine, replace or extend code subject to its licensing and technical compatibility. A custom Minecraft mod is the one excluded approach; an external controller is explicitly allowed.
+### P5 — Repeatability, additional bases and scaling
+Implementation:
+- When the first base is crowded or mining becomes uneconomical, turtle establishes a new worksite using a stocked bootstrap kit or locally gathered items.
+- Assign mining areas to avoid overlap/collision; maintain shared storage and resource transfers only as complexity makes them necessary.
+- Validate existing chunk-loading strategy (including upgrade conflicts) across movement/world save. Test controller/game restart, blocked route, bad biome, no fuel, full storage, child death.
+- Add dashboards only for diagnosing actual issues, not as an early dependency.
 
-### Concrete candidates audited
+**Gate P5:** multi-generation unattended growth across several test worlds/seeds, with metrics: births, generations, manual interventions after start, fuel per usable resource, failed/stalled tasks, and successful recovery rate.
 
-| Candidate | What we'd reuse/test | Assessment/limitations |
-| --- | --- | --- |
-| [LAMA](https://github.com/fnuecke/lama) | Movement wrappers, saved coordinates, recovery after interrupted movement from fuel changes, waypoints | **MIT**. Promising replacement for current `nav.lua` lockouts. Archived, old code, requires all movement **and refueling** to go through LAMA; cannot mix trackers without adapters. Test on actual 1.20.1 CC:Tweaked. |
-| [ComputerCraft Turtle BotNet](https://github.com/SPOOKEXE/computercraft-turtle-botnet) | Python/WebSocket turtle worker/controller, persistence, recipe resolver, behavioral planning | **MIT**, archived/unfinished; README calls intended 'HIVE' unimplemented. Use code where it works; do not claim its self-replication is operational. Potential starting point for a controller, not a guaranteed turnkey solution. |
-| [Opus OS](https://github.com/kepler155c/opus) | Existing A* pathfinder, task launching, remote file access | **MIT**. Full OS is probably overkill; evaluate extracting the navigation component or adopting its movement API, not both Opus and LAMA blindly. |
-| [Equbuxu/mine](https://github.com/Equbuxu/mine) | Fuel/inventory/cargo handling, mining patterns, ore traversal and unloading | Useful algorithms, mature-looking single mining program. GitHub does not expose a repository license; **do not copy/distribute code until permission/license is confirmed**. Also inspect world/upgrade assumptions. |
-| [Actually Useful Turtles](https://github.com/helpmyRF24isntworking/computercraft) | Shared map, mining assignments, decentralized execution while host offline, checkpointing, dropoffs | Promising active and complex existing *in-game* host/worker system; relies on modems and GPS for startup; no recognized license. Assess and seek permission before code incorporation. |
-| [turtles2](https://github.com/Tjstretchalot/turtles2) | Restart-friendly farm, A* navigation, forestry and ore routines | Features closely match our needs, but uses a custom revocable 'Good, not Evil' license. Evaluate behavior, don't rely on unrestricted redistribution rights. |
-| [PPakalns/TreeFarm](https://github.com/PPakalns/TreeFarm) | Coordinated wood/sapling farming and self-refueling | Requires established tree farm layout, chests/saplings/modems and a controller. No recognized repo license. Useful second-stage tree farm design; not autonomous finding of the first tree. |
-| [runi95/turtle-control-panel](https://github.com/runi95/turtle-control-panel) | WebSocket status dashboard and interactive remote control | Useful only if a dashboard is genuinely needed. No recognized repo license; not a resource planner. |
+## Release/testing discipline
 
-**Licensing:** Being public on GitHub is not the same as granting permission to copy/modify/distribute. Keep MIT attribution and LICENSE notices when copying MIT code. For repos without a recognized license, use published behavior as reference or request permission rather than importing source.
+- Only deliver new turtle install command after required CI passes; syntax alone is insufficient.
+- Test interrupted operations at each boundary: move, item transfer, chest placement, furnace input/output, craft, child inserted in drive, child boot.
+- All installer paths, versions and inherited child files verified against one immutable source commit.
+- Existing in-game validated smelting and reproduction remain fixed reference tests.
+- A failed activity should report its **observed cause** and be retried/replanned when possible; "old flag set" is not a valid terminal reason.
+- Do not merge unrelated features into a release. Use branch/PR or a test gate instead of pushing half-written code onto main.
+- Track statuses distinctly: `tested-in-Minecraft`, `mock-tested`, `unverified`.
+- Avoid a speculative human-assistance pathway as the default. Manual intervention after initial start counts as a failure at autonomy milestones.
 
-### Integration rules
+## Work that should happen *next*, in order
 
-- **Build the smallest adapter that gives the planner an operation:** `inspect`, `go_to`, `mine_area`, `harvest_trees`, `deposit`, `smelt`, `craft_child`, `initialize_child`, `launch_child`. These are interface examples, not a commitment to custom implementations.
-- **Delegate bounded work, not raw joystick instructions.** An external controller should ask a turtle to `mine_area` or `return_home`, and receive status, inventory and observed blocks. Turtle-side work continues during transient network loss; the controller can replan on reconnect.
-- **Exactly one movement authority.** If LAMA tracks position/refuel, every code path including third-party miners must route through it. Alternatively pick a different tracker; do not layer trackers.
-- **Reuse the hub.** A single established chest/furnace/disk drive may serve many children. Parents should not need to demolish shared equipment. New turtles can work from this base, or carry a bootstrap kit to establish another.
-- **No speculative library merges.** Run prospective scripts standalone in a sandbox world first, inventory their assumptions (modems, GPS, installed upgrades, fuel, fixed chest layout, startup files, license), then adapt in a branch. Preserve existing verified reproduction code.
-- **The controller is not a cheat oracle.** It sees data reported by turtles/peripherals and logs, not arbitrary Minecraft world state. Server/chunk loading remains separate.
-- **Measure success:** a complete autonomous reproduction, total human actions after start, fuel/movement wasted, recovery after restart, and first grandchild. Prefer deleting custom code over adding more glue if a proven implementation replaces it.
+1. **Foundation test:** Pythonized ComputerCraft one-turtle task, observe+act+result, reconnect. Evaluate BotNet as fallback.
+2. **Navigation selection:** isolated LAMA / alternative tracker with actual move, fuel accounting, forced unload.
+3. **Base integration:** fixed geometry, storage accounting, furnace/drive setup and swapping, deterministic resource ledger.
+4. **Single command birth:** integrate verified factory/process/clone in Python-led bounded tasks; same runtime boots in child.
+5. **Environmental bootstrap:** existing forestry and mining programs added as adapters; wood and fuel first.
+6. **Ore acquisition and recursive birth:** full raw-world cycle, then grandchild.
+7. **Chunk loading and expansion:** necessary for actual absence of player; test before declaring unattended success.
 
-### Immediate three experiments before major architecture changes
-
-1. **LAMA isolated:** Verify movement, orientation and refuel accounting across normal travel and forced restart/chunk unload; inspect whether it conflicts with cloning/startup. Do not integrate into `main` until it passes.
-2. **Existing miner isolated:** Compare selected published miner algorithm with our own for 30–50 blocks of resource acquisition and return to chest. Prefer code with explicit reuse permission. No need to test half a dozen scripts in the main turtle.
-3. **Minimal external controller isolated:** Python WebSocket service connects to **one** turtle, receives inventory/fuel/pose snapshot, assigns a high-level task, gets result, and survives turtle reconnect. Base it on BotNet concepts/code if compatible, without altering the working factory. If this is simpler than Lua-only planning, use it.
-
-After these tests, commit to **one** coherent control stack, then integrate our verified craft/smelt/clone primitives. No more bespoke architecture before checking whether existing code covers it.
+**No more:** standalone experimental commands marketed as autonomy; repeated manual station resets; blind arbitrary mining patterns; redesigning the entire system every turn; building extra mods; adding controller/colony complexity until an empirical failure warrants it.
