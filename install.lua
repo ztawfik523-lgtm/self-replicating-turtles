@@ -1,7 +1,7 @@
--- Turtle Genesis installer. Resolves a single commit, so no stale/mixed main files.
+-- Turtle Genesis installer. Pin downloads to a fixed commit; no api.github.com dependency.
 -- Run inside a turtle with: wget run <URL to this file>
 local REPO = 'ztawfik523-lgtm/self-replicating-turtles'
-local API = 'https://api.github.com/repos/' .. REPO .. '/commits/main'
+local sha = 'c2dfb897abacbb08e0e4cca144f69793a58c8221'
 local STAGE = '/tg-download'
 local EXPECTED = '0.3.3'
 local FILES = {
@@ -14,17 +14,8 @@ assert(turtle, 'This installer must run inside a turtle')
 assert(http and http.get, 'HTTP is disabled in CC: Tweaked')
 if fs.exists(STAGE) then fs.delete(STAGE) end
 
-local api, apiErr = http.get(API, {
-  ['Accept'] = 'application/vnd.github+json',
-  ['User-Agent'] = 'Turtle-Genesis-installer',
-})
-assert(api, 'Cannot determine GitHub revision: ' .. tostring(apiErr))
-local record = textutils.unserializeJSON(api.readAll())
-api.close()
-assert(type(record) == 'table' and type(record.sha) == 'string'
-  and record.sha:match('^[0-9a-f]+$') and #record.sha == 40,
-  'GitHub did not return a valid commit SHA (maybe rate limited)')
-local sha = record.sha
+-- raw.githubusercontent.com works in CC: Tweaked where api.github.com may be blocked.
+-- This revision contains all v0.3.3 runtime files.
 local base = 'https://raw.githubusercontent.com/' .. REPO .. '/' .. sha .. '/'
 print('Installing Turtle Genesis from commit ' .. sha:sub(1, 12))
 
