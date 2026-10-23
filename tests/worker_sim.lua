@@ -34,4 +34,8 @@ local paused={id='7:3',status='started',action='birth',args={}}
 _G.saved=paused
 files['/tg/worker-job.dat']='state'
 assert(w.handle(job).ok and births==2,'Interrupted birth was not retried')
-print('PASS: Lua worker snapshot, idempotency and interrupted birth resume')
+assert(files['/tg/worker-job.dat.bak'])
+files['/tg/worker-job.dat']=nil
+assert(w.handle(job).ok and births==2,
+ 'Interrupted journal rename replayed a completed birth')
+print('PASS: Lua worker snapshot, resume, journal backup fallback')
