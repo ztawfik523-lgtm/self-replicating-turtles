@@ -196,7 +196,57 @@ function M.run(kind)
   -- collect the equipment. Do not start a second identical smelting batch.
   if state.data.processing or old.phase:find('^processing_')
     or old.phase=='processing_finished' or old.phase:find('pickup')
-    or old.phase:find('picking_up') or old.phase:find('_collected) then
+    or old.phase:find('picking_up') or old.phase:find('_collected
+   print('Finishing interrupted station automatically')
+   local ok=M.pack()
+   turtle.select(prev)
+   return ok
+  end
+  print('Continuing partially placed station')
+ else
+  -- Only validate initial supplies on a brand-new operation.
+  local below,front=blockName('bottom'),blockName('front')
+  if below~='minecraft:chest' and below~='minecraft:barrel' then
+   assert(amount('minecraft:chest')>=1,'Need chest item in inventory')
+  end
+  if front~='minecraft:furnace' then
+   assert(amount('minecraft:furnace')>=1 or amount('minecraft:cobblestone')>=8,
+     'Need furnace item or 8 cobblestone')
+  end
+  state.data.station={phase='starting',kind=kind,ownedChest=false,ownedFurnace=false}
+  state.save()
+ end
+ placeChest()
+ local chest=peripheral.wrap('bottom')
+ assert(chest and type(chest.list)=='function','Storage unavailable below')
+ if next(chest.list()) then
+  factory.collect()
+ end
+ placeFurnace()
+ mark('processing_'..kind)
+ process.run(kind)
+ mark('processing_finished')
+ local ok=M.pack()
+ turtle.select(prev)
+ if ok then print('Portable processing complete') end
+ return ok
+end
+
+-- Invoked at turtle startup if an earlier station operation was interrupted.
+-- Recover using saved job information; don't invent a new operation.
+function M.recover()
+ local s=state.data.station
+ if not s then return true end
+ local kind=s.kind or (state.data.processing and state.data.processing.kind)
+   or s.phase:match('^processing_(%a+)$')
+ if not kind then
+  print('Station interrupted before smelting; reclaiming equipment')
+  return M.pack()
+ end
+ return M.run(kind)
+end
+return M
+) then
    print('Finishing interrupted station automatically')
    local ok=M.pack()
    turtle.select(prev)
