@@ -4,6 +4,8 @@ Minecraft **1.20.1 Forge**, CC: Tweaked, Advanced Peripherals, Turtlematic.
 
 ## Current status — 0.3.5 (recovery patch; in-game test pending)
 
+**New development track:** A Python controller and Lua task worker are being implemented and tested offline in `controller/` and `tg/worker.lua`. They are deliberately NOT included in the current installer or startup until the first complete, milestone-level base-to-offspring integration is ready. See [PLAN.md](PLAN.md).
+
 - **Verified in Minecraft:** mining, manufactured offspring from supplied components, parent programming and booting an offspring.
 - **Implemented and mock-tested (not yet verified in Minecraft):** furnace processing of raw iron, gold, cobblestone, sand and logs using temporary inventory storage.
 - **Not implemented:** automated gathering of every manufacturing resource, harvesting/replanting trees, assembling infrastructure without supplied blocks, reliable long-range exploration.

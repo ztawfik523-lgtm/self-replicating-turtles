@@ -17,3 +17,10 @@ jobs:
           find . -type f -name '*.lua' -print0 | xargs -0 -r -n1 luac5.2 -p
       - name: Run recovery regression tests
         run: lua5.2 tests/recovery.lua
+
+      - name: Test controller-side Lua worker
+        run: lua5.2 tests/worker_sim.lua
+      - name: Install Python test dependencies
+        run: python -m pip install "pytest>=8" "pytest-asyncio>=0.24" "websockets>=14,<17"
+      - name: Test persistent controller and WebSocket protocol
+        run: python -m pytest -q tests/test_controller.py
