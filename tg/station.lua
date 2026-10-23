@@ -213,7 +213,7 @@ function M.run(kind)
    assert(amount('minecraft:furnace')>=1 or amount('minecraft:cobblestone')>=8,
      'Need furnace item or 8 cobblestone')
   end
-  state.data.station={phase='starting',ownedChest=false,ownedFurnace=false}
+  state.data.station={phase='starting',kind=kind,ownedChest=false,ownedFurnace=false}
   state.save()
  end
  placeChest()
@@ -230,5 +230,19 @@ function M.run(kind)
  turtle.select(prev)
  if ok then print('Portable processing complete') end
  return ok
+end
+
+-- Invoked at turtle startup if an earlier station operation was interrupted.
+-- Recover using saved job information; don't invent a new operation.
+function M.recover()
+ local s=state.data.station
+ if not s then return true end
+ local kind=s.kind or (state.data.processing and state.data.processing.kind)
+   or s.phase:match('^processing_(%a+)$')
+ if not kind then
+  print('Station interrupted before smelting; reclaiming equipment')
+  return M.pack()
+ end
+ return M.run(kind)
 end
 return M
