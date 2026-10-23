@@ -1,7 +1,7 @@
 -- Turtle Genesis installer. Pin downloads to a fixed commit; no api.github.com dependency.
 -- Run inside a turtle with: wget run <URL to this file>
 local REPO = 'ztawfik523-lgtm/self-replicating-turtles'
-local sha = 'c2dfb897abacbb08e0e4cca144f69793a58c8221'
+local sha = '6e0aa8ff284ed9847337785002079c7ebe638a65'
 local STAGE = '/tg-download'
 local EXPECTED = '0.3.4'
 local FILES = {
@@ -15,7 +15,7 @@ assert(http and http.get, 'HTTP is disabled in CC: Tweaked')
 if fs.exists(STAGE) then fs.delete(STAGE) end
 
 -- raw.githubusercontent.com works in CC: Tweaked where api.github.com may be blocked.
--- This revision contains all v0.3.3 runtime files.
+-- This revision contains syntax-checked v0.3.4 runtime files.
 local base = 'https://raw.githubusercontent.com/' .. REPO .. '/' .. sha .. '/'
 print('Installing Turtle Genesis from commit ' .. sha:sub(1, 12))
 
