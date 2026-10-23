@@ -2,7 +2,7 @@
 
 Minecraft 1.20.1 Forge • CC: Tweaked • Advanced Peripherals • Turtlematic
 
-**Experimental v0.2.0**: persistent turtle state, fuel safeguards, limited mining survey and a lab reproduction test. Not autonomous or verified in Minecraft yet.
+**Experimental v0.2.1**: persistent turtle state, fuel safeguards, limited mining survey and a lab reproduction test. Not autonomous or verified in Minecraft yet.
 
 ## One-command installation (inside a turtle)
 
@@ -58,3 +58,9 @@ This runs four tunnel passes unattended and then pauses. To run until planned ar
 This is **not** yet fully self-sustaining or self-replicating. It cannot automatically craft furnaces, compute all turtle recipe dependencies or build storage; it may stop if it finds insufficient coal or a liquid/unbreakable obstacle. Extensive chunk loading away from players also requires an installed and configured turtle upgrade or other chunk-loading mechanism.
 
 When a later offspring is created from a parent that has enabled autonomy, the offspring inherits the auto-start setting (not the parent's map and inventory).
+
+## v0.2.1: recovery and safe interruption
+
+The v0.2.0 miner can preserve `pending=back` if Ctrl+T kills a turtle movement before its result is recorded. The engine cannot determine whether the move physically happened. **Do not blindly delete the pending flag or assume a position.** When already stopped underground, `tg/main.lua rebase` backs up the original state, discards the old route, and treats the turtle's current block as a new local origin; this does not move the turtle or remove its inventory. Subsequent `tg/main.lua auto 4` mines from that current depth without another automatic 24-block descent. Only use rebase on a stationary turtle with no active reproduction or separate survey.
+
+When mining normally, open the turtle terminal and **press S** (without Enter) to request a graceful stop. It finishes returning to its tunnel entrance first, then stops. Do not use Ctrl+T to stop ordinary mining; it can interrupt physical commands. The `stop` command remains available to disable autostart while idle.

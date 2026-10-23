@@ -202,19 +202,64 @@ function M.run(maxPasses)
   local m=info()
   if m.stage=='done' then print('Mining completed all planned levels');return end
   assert(not (m.trip and m.stage~='tunnel'), 'Invalid persisted miner state')
-  if maxPasses then assert(maxPasses>=1 and maxPasses%1==0,'Pass count must be positive integer') end
-  m.running=true;state.save()
-  local startPasses=m.passes
-  while m.running and (not maxPasses or m.passes-startPasses<maxPasses) do
-    if m.stage=='descend' then
-      if not descend(m) then break end
-    elseif m.stage=='tunnel' then
-      if not tunnel(m) then break end
-    elseif m.stage=='done' then break
-    else error('Unknown mining stage: '..tostring(m.stage)) end
+  if maxPasses then
+    assert(maxPasses>=1 and maxPasses%1==0, 'Pass count must be positive integer')
   end
-  if maxPasses and m.running then m.running=false; m.reason='requested passes complete';state.save() end
-  print(('Mining paused: %s; ore=%d, tunnels=%d'):format(tostring(m.reason),m.ore,m.passes))
+  m.running=true
+  m.stopRequested=false
+  state.save()
+  local startPasses=m.passes
+  print('Press S in the turtle terminal to stop after returning from the current tunnel.')
+  local done=false
+
+  local function work()
+    while m.running and (not maxPasses or m.passes-startPasses<maxPasses) do
+      if m.stopRequested then
+        if m.trip then
+          -- A safe stop must reach the saved tunnel entrance first.
+          m.trip.phase='back'
+          state.save()
+          returnHome(m)
+        end
+        m.running=false
+        m.reason='stopped safely'
+        m.stopRequested=false
+        state.save()
+        break
+      elseif m.stage=='descend' then
+        if not descend(m) then break end
+      elseif m.stage=='tunnel' then
+        if not tunnel(m) then break end
+      elseif m.stage=='done' then break
+      else error('Unknown mining stage: '..tostring(m.stage)) end
+    end
+    if maxPasses and m.running then
+      m.running=false
+      m.reason='requested passes complete'
+      state.save()
+    end
+    print(('Mining paused: %s; ore=%d, tunnels=%d'):format(
+      tostring(m.reason),m.ore,m.passes))
+  end
+
+  -- Unlike Ctrl+T, the S key never terminates an in-progress turtle.move().
+  parallel.waitForAll(
+    function()
+      work()
+      done=true
+      os.queueEvent('tg_mining_finished')
+    end,
+    function()
+      while not done do
+        local ev,key=os.pullEventRaw()
+        if ev=='char' and type(key)=='string' and key:lower()=='s' then
+          m.stopRequested=true
+          state.save()
+          print('Stop requested; returning to tunnel entrance...')
+        end
+      end
+    end
+  )
 end
 
 function M.status()
@@ -226,7 +271,46 @@ function M.status()
 end
 
 function M.stop()
-  local m=info();m.running=false;m.reason='user stopped';state.save()
-  print('Miner disabled. If away from base, next auto run completes the return first.')
+  local m=info()
+  m.running=false
+  m.stopRequested=false
+  m.reason='stopped while idle'
+  state.save()
+  print('Autostart disabled; no physical movement performed.')
+end
+
+-- Re-anchor coordinates to the turtle's ACTUAL current block. We cannot
+-- infer if the last Ctrl+T-interrupted movement succeeded. Instead of
+-- inventing a position, discard only the old mining path and coordinate frame.
+-- Original state is backed up before this manual recovery operation.
+function M.rebase()
+  local d=state.data
+  assert(not d.replication and not d.trip,
+    'Cannot rebase during a reproduction or survey')
+  assert(d.miner, 'No active mining plan to rebase')
+  assert(not d.pending or (
+    d.miner.trip and (
+      d.pending.action=='forward' or d.pending.action=='back'
+      or d.pending.action=='up' or d.pending.action=='down'
+      or d.pending.action=='turnLeft' or d.pending.action=='turnRight'
+    )), 'Unknown pending action; refusing to discard it')
+
+  local backup='/tg/state-before-rebase.dat'
+  if fs.exists(backup) then fs.delete(backup) end
+  if fs.exists('/tg/state.dat') then fs.copy('/tg/state.dat',backup) end
+  local old=d.miner
+  d.pending=nil
+  d.pose={x=0,y=0,z=0,dir=0}
+  d.miner={
+    running=false, stopRequested=false, stage='tunnel', targetY=0,
+    level=1, radius=8, heading=0, home={x=0,y=0,z=0,dir=0},
+    trip=nil, ore=old.ore or 0, passes=old.passes or 0,
+    reason='re-anchored at current physical position',
+  }
+  d.autonomyEnabled=false
+  state.save()
+  log.event('rebase','old path discarded; current block is origin')
+  print('Rebased successfully. Previous path abandoned, inventory untouched.')
+  print('Old state backup: ' .. backup)
 end
 return M

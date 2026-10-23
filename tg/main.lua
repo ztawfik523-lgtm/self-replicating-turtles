@@ -53,6 +53,8 @@ local ok, err = pcall(function()
     state.save()
     log.event('recover', 'cleared zero-movement survey')
     print('Recovered: aborted survey had no recorded movement.')
+  elseif command == 'rebase' then
+    require('miner').rebase()
   elseif command == 'auto' then
     state.data.autonomyEnabled = true
     state.save()
@@ -71,7 +73,7 @@ local ok, err = pcall(function()
   elseif command == 'resume' then
     require('replicate').resume()
   elseif command == 'help' then
-    print('tg/main.lua status | probe | diagnose | recover | auto [tunnels] | stop | survey <1..12> | install [drive-side] | replicate | resume')
+    print('tg/main.lua status | probe | diagnose | recover | auto [tunnels] | stop | rebase | survey <1..12> | install [drive-side] | replicate | resume')
   else
     error('Unknown command. Run: tg/main.lua help')
   end
