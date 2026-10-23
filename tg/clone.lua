@@ -38,6 +38,25 @@ function M.install(side)
     fs.copy(source, target)
     assert(contents(source) == contents(target), 'Install verification failed: ' .. relative)
   end
+  -- Controller-enabled parents pass their worker and controller address on to
+  -- the offspring, so a booted child joins the same colony automatically.
+  -- Legacy clones without a controller configuration retain legacy startup.
+  if fs.exists('/tg/worker-config.dat') then
+    for _,rel in ipairs({'tg/worker.lua','tg/workshop.lua','tg/worker-entry.lua'}) do
+      local src='/'..rel
+      assert(fs.exists(src),'Controller clone missing '..src)
+      local dst=fs.combine(mount,rel)
+      if not fs.exists(fs.getDir(dst)) then fs.makeDir(fs.getDir(dst)) end
+      if fs.exists(dst) then fs.delete(dst) end
+      fs.copy(src,dst)
+      assert(contents(src)==contents(dst),'Worker inheritance copy failed: '..rel)
+    end
+    local dest=fs.combine(mount,'tg/worker-config.dat')
+    if fs.exists(dest) then fs.delete(dest) end
+    fs.copy('/tg/worker-config.dat',dest)
+    assert(contents('/tg/worker-config.dat')==contents(dest),
+      'Inherited controller address did not match')
+  end
   -- Record lineage without cloning any previous robot's state.
   local seedPath = fs.combine(mount, 'tg/seed.dat')
   local seed = {schema = 1, generation = state.data.generation + 1,

@@ -207,16 +207,28 @@ local function preflight()
  end
  assert(#needs==0,'Missing first-birth inputs: '..table.concat(needs,'; '))
 end
-function M.run()
+function M.run(jobId)
  state.assertSafe()
  assert(not state.data.manufacture,
     'Existing partial factory craft requires inventory reconciliation')
  assert(not state.data.replication,
     'Existing partial child deployment requires dedicated recovery')
  local prev=turtle.getSelectedSlot()
+ if state.data.birth and jobId and state.data.birth.jobId
+     and state.data.birth.jobId~=jobId then
+  error('Different birth job is already being executed')
+ end
+ if state.data.birth and state.data.birth.childrenBefore
+     and (state.data.children or 0)>state.data.birth.childrenBefore then
+  -- Child already booted before the controller/journal recorded completion.
+  state.data.birth=nil
+  state.save()
+  return true
+ end
  if not state.data.birth then
   preflight()
-  state.data.birth={stage='start'}
+  state.data.birth={stage='start',jobId=jobId,
+      childrenBefore=state.data.children or 0}
   state.save()
  end
  -- Each operation uses observations; do not rely on saved phase alone.
