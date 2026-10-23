@@ -46,7 +46,8 @@ local function snapshot()
   pose=d.pose,generation=d.generation,
   front=front and fb.name or nil,bottom=below and bb.name or nil,
   processing=d.processing~=nil,manufacturing=d.manufacture~=nil,
-  replication=d.replication~=nil,station=d.station~=nil}
+  replication=d.replication~=nil,station=d.station~=nil,
+  birth=d.birth~=nil,children=d.children or 0}
 end
 local function execute(job)
  local a=job.action

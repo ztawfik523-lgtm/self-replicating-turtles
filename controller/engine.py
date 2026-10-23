@@ -82,15 +82,16 @@ class Colony:
         if journal.get("id") == job.id and journal.get("status") == "done":
             self.complete(rec.turtle_id, job.id, journal.get("result") or {})
             return "complete"
+        # Re-send the SAME ID on reconnect. A sent job might never have
+        # arrived; the turtle journal handles duplicates if it did.
+        # A resumed birth is journaled locally before hello.
         if journal.get("id") == job.id and journal.get("status") == "started":
-            job.state = "interrupted"
+            job.state = "queued"
             self.save()
-            return "interrupted"
-        if job.state != "queued":
-            job.state = "interrupted"
-            self.save()
-            return "interrupted"
-        return "queued"
+            return "resend_started"
+        job.state = "queued"
+        self.save()
+        return "resend_pending"
 
     def sent(self, ident: int, job_id: str):
         job = self.turtles[ident].outstanding
@@ -106,6 +107,14 @@ class Colony:
             return False
         job.state = "done" if result.get("ok") else "failed"
         job.result = result
+        # The fresh post-action view MUST replace pre-action inventory before
+        # next_job can enqueue more work. Otherwise an old birth-ready
+        # snapshot can schedule a duplicate child between result and snapshot.
+        view = result.get("data")
+        if isinstance(view, dict):
+            view = view.get("snapshot")
+            if isinstance(view, dict):
+                rec.last_snapshot = view
         if not result.get("ok"):
             rec.blocked[job.action] = job.args.get("snapshot_key", "unknown")
         else:
@@ -174,7 +183,7 @@ def next_job(rec: TurtleRecord) -> tuple[str,dict[str,Any]] | None:
     """
     view = rec.last_snapshot
     if rec.outstanding or any(view.get(k) for k in
-           ("processing", "manufacturing", "replication", "station")):
+           ("processing", "manufacturing", "replication", "station", "birth")):
         return None
     items = count_items(view)
     birth_ready=birth_inputs_ready(view)

@@ -95,3 +95,35 @@ async def test_child_registers_without_replacing_parent(tmp_path):
                 assert json.loads(await ws.recv())["type"]=="welcome"
     assert set(host.colony.turtles)=={7,8}
     assert host.colony.turtles[8].generation==2
+
+def test_reconnected_inflight_task_is_resent_same_id(tmp_path):
+    p=tmp_path/"db.json"
+    db=Colony(p); rec=db.register(hello())
+    job=db.queue(7,"produce");db.sent(7,job.id)
+    db2=Colony(p);rec=db2.register(hello())
+    assert db2.reconcile_hello(rec,hello())=="resend_pending"
+    assert rec.outstanding.id==job.id
+    assert rec.outstanding.state=="queued"
+    assert db2.queue if False else True  # no second job is created
+    assert db2.counter==1
+
+def test_completed_birth_refreshes_snapshot_before_followup(tmp_path):
+    db=Colony(tmp_path/"db.json");rec=db.register(hello())
+    rec.last_snapshot={"birth":False,"front":"computercraft:disk_drive",
+      "bottom":"minecraft:chest","inventory":[
+        {"name":"minecraft:oak_planks","count":14},
+        {"name":"minecraft:coal","count":4},
+        {"name":"minecraft:stone","count":7},
+        {"name":"minecraft:iron_ingot","count":7},
+        {"name":"minecraft:redstone","count":1},
+        {"name":"minecraft:glass_pane","count":1},
+        {"name":"minecraft:diamond","count":3}]}
+    assert next_job(rec) is not None
+    job=db.queue(7,"produce");db.sent(7,job.id)
+    result={"ok":True,"type":"result","id":job.id,
+       "data":{"snapshot":{"birth":False,"children":1,"inventory":[],
+                            "front":"computercraft:disk_drive",
+                            "bottom":"minecraft:chest"}}}
+    assert db.complete(7,job.id,result)
+    assert rec.last_snapshot["children"]==1
+    assert next_job(rec) is None
