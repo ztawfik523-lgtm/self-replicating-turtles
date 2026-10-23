@@ -1,50 +1,76 @@
--- Turtle Genesis remote installer.
--- Run: wget run https://raw.githubusercontent.com/ztawfik523-lgtm/self-replicating-turtles/main/install.lua
-local BASE = 'https://raw.githubusercontent.com/ztawfik523-lgtm/self-replicating-turtles/main/'
+-- Turtle Genesis installer. Resolves a single commit, so no stale/mixed main files.
+-- Run inside a turtle with: wget run <URL to this file>
+local REPO = 'ztawfik523-lgtm/self-replicating-turtles'
+local API = 'https://api.github.com/repos/' .. REPO .. '/commits/main'
+local STAGE = '/tg-download'
+local EXPECTED = '0.1.2'
 local FILES = {
   'tg/config.lua', 'tg/state.lua', 'tg/log.lua', 'tg/fuel.lua',
   'tg/nav.lua', 'tg/survey.lua', 'tg/clone.lua', 'tg/replicate.lua',
   'tg/probe.lua', 'tg/main.lua', 'startup.lua',
 }
-local STAGE = '/tg-download'
 
-assert(turtle, 'Run this installer inside a turtle')
+assert(turtle, 'This installer must run inside a turtle')
 assert(http and http.get, 'HTTP is disabled in CC: Tweaked')
-assert(not fs.exists(STAGE), 'Remove previous /tg-download directory before trying again')
-fs.makeDir(STAGE)
+if fs.exists(STAGE) then fs.delete(STAGE) end
 
--- Fetch everything first, before changing installed programs.
+local api, apiErr = http.get(API, {
+  ['Accept'] = 'application/vnd.github+json',
+  ['User-Agent'] = 'Turtle-Genesis-installer',
+})
+assert(api, 'Cannot determine GitHub revision: ' .. tostring(apiErr))
+local record = textutils.unserializeJSON(api.readAll())
+api.close()
+assert(type(record) == 'table' and type(record.sha) == 'string'
+  and record.sha:match('^[0-9a-f]+$') and #record.sha == 40,
+  'GitHub did not return a valid commit SHA (maybe rate limited)')
+local sha = record.sha
+local base = 'https://raw.githubusercontent.com/' .. REPO .. '/' .. sha .. '/'
+print('Installing Turtle Genesis from commit ' .. sha:sub(1, 12))
+
+fs.makeDir(STAGE)
 for i, path in ipairs(FILES) do
   print(('Downloading %d/%d: %s'):format(i, #FILES, path))
-  local response, err = http.get(BASE .. path)
-  if not response then
+  local res, err = http.get(base .. path)
+  if not res then
     fs.delete(STAGE)
     error('Download failed for ' .. path .. ': ' .. tostring(err), 0)
   end
-  local content = response.readAll()
-  response.close()
+  local source = res.readAll()
+  res.close()
+  assert(#source > 0, 'Empty source: ' .. path)
+  local func, compileErr = load(source, '@' .. path)
+  assert(func, 'Invalid Lua in ' .. path .. ': ' .. tostring(compileErr))
   local dest = fs.combine(STAGE, path)
-  local folder = fs.getDir(dest)
-  if not fs.exists(folder) then fs.makeDir(folder) end
-  local out = assert(fs.open(dest, 'w'))
-  out.write(content)
+  fs.makeDir(fs.getDir(dest))
+  local out = assert(fs.open(dest, 'w'), 'Cannot create ' .. dest)
+  out.write(source)
   out.close()
-  assert(fs.getSize(dest) > 0, 'Empty file: ' .. path)
 end
 
--- Preserve existing state and back up any pre-existing startup script.
+-- Refuse to overwrite working files if the fetched commit is not the expected build.
+local handle = assert(fs.open(fs.combine(STAGE, 'tg/config.lua'), 'r'))
+local versionFile = handle.readAll()
+handle.close()
+assert(versionFile:find("version = '" .. EXPECTED .. "'", 1, true),
+  'Wrong version in download; installed files unchanged')
+local mainFile = assert(fs.open(fs.combine(STAGE, 'tg/main.lua'), 'r'))
+local mainContents = mainFile.readAll()
+mainFile.close()
+assert(mainContents:find("command == 'recover'", 1, true),
+  'Missing recovery command; installed files unchanged')
+
 if fs.exists('/startup.lua') and not fs.exists('/startup.lua.genesis-backup') then
   fs.copy('/startup.lua', '/startup.lua.genesis-backup')
-  print('Preserved old startup.lua in startup.lua.genesis-backup')
 end
+
 for _, path in ipairs(FILES) do
-  local source = fs.combine(STAGE, path)
-  local dest = '/' .. path
-  local folder = fs.getDir(dest)
-  if not fs.exists(folder) then fs.makeDir(folder) end
-  if fs.exists(dest) then fs.delete(dest) end
-  fs.move(source, dest)
+  local from, to = fs.combine(STAGE, path), '/' .. path
+  fs.makeDir(fs.getDir(to))
+  if fs.exists(to) then fs.delete(to) end
+  fs.move(from, to)
 end
 fs.delete(STAGE)
-print('Turtle Genesis installed! Run: reboot')
-print('Then: tg/main.lua probe')
+
+print('Installed Turtle Genesis ' .. EXPECTED .. ' (' .. sha:sub(1, 12) .. ')')
+print('State preserved. Type: reboot')
