@@ -2,7 +2,7 @@
 
 Minecraft 1.20.1 Forge • CC: Tweaked • Advanced Peripherals • Turtlematic
 
-**Experimental v0.1.3**: persistent turtle state, fuel safeguards, limited mining survey and a lab reproduction test. Not autonomous or verified in Minecraft yet.
+**Experimental v0.1.4**: persistent turtle state, fuel safeguards, limited mining survey and a lab reproduction test. Not autonomous or verified in Minecraft yet.
 
 ## One-command installation (inside a turtle)
 
@@ -30,3 +30,9 @@ The source code is intentionally small and independent of client-only mods. This
 4. A successful test programs the child in the disk drive, retrieves it, places it behind the parent, transfers fuel, and powers it on. Check the child terminal for generation=1.
 
 The entire sequence has **not yet been tested in Minecraft**. It deliberately halts on an interrupted or partially completed replication rather than blindly duplicating the attempt. On failure report the printed `Replication:` stage; do not run `replicate` again without checking the world and state.
+
+## Fresh turtle initialization and interrupted drive insertion
+
+A new uninitialized turtle item has no mounted filesystem. v0.1.4 tries to extract it from the drive, temporarily place and power it on to assign an ID, dig it back into inventory, return it to the drive and install the source files. The Mining Turtle must have an unobstructed air block behind it, directly opposite the drive. This physical sequence still requires an in-game test.
+
+If v0.1.3 failed at the **inserted** stage, leave the item in the disk drive and run `tg/main.lua resume` after updating/rebooting. The resume command is only allowed at the precise inserted stage. If it fails later, report the stage; do not retry blindly.

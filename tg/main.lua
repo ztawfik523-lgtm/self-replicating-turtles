@@ -48,8 +48,10 @@ local ok, err = pcall(function()
     print('Child code installed on mount:', require('clone').install(args[2] or 'front'))
   elseif command == 'replicate' then
     require('replicate').lab()
+  elseif command == 'resume' then
+    require('replicate').resume()
   elseif command == 'help' then
-    print('tg/main.lua status | probe | recover | survey <1..12> | install [drive-side] | replicate')
+    print('tg/main.lua status | probe | recover | survey <1..12> | install [drive-side] | replicate | resume')
   else
     error('Unknown command. Run: tg/main.lua help')
   end
