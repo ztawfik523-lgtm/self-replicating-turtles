@@ -42,7 +42,8 @@ for i, path in ipairs(FILES) do
   local func, compileErr = load(source, '@' .. path)
   assert(func, 'Invalid Lua in ' .. path .. ': ' .. tostring(compileErr))
   local dest = fs.combine(STAGE, path)
-  fs.makeDir(fs.getDir(dest))
+  local folder = fs.getDir(dest)
+  if folder ~= '' and not fs.exists(folder) then fs.makeDir(folder) end
   local out = assert(fs.open(dest, 'w'), 'Cannot create ' .. dest)
   out.write(source)
   out.close()
@@ -66,7 +67,8 @@ end
 
 for _, path in ipairs(FILES) do
   local from, to = fs.combine(STAGE, path), '/' .. path
-  fs.makeDir(fs.getDir(to))
+  local folder = fs.getDir(to)
+  if folder ~= '' and not fs.exists(folder) then fs.makeDir(folder) end
   if fs.exists(to) then fs.delete(to) end
   fs.move(from, to)
 end
