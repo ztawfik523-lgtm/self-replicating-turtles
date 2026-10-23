@@ -40,8 +40,31 @@ local function cleanup()
  if fs.exists(STAGE) then fs.delete(STAGE) end
  if fs.exists(BACKUP) then fs.delete(BACKUP) end
 end
-assert(not fs.exists(STAGE) and not fs.exists(BACKUP),
- 'Previous staging files exist; inspect before another install')
+-- If the game closed halfway through an earlier installation, restore the
+-- last complete backup automatically before attempting the next update.
+local function recoverPrevious()
+ if fs.exists(BACKUP) then
+  if fs.exists(fs.combine(BACKUP,'READY')) then
+   print('Recovering previous interrupted controller installation')
+   for _,path in ipairs(paths) do
+    local target='/'..path
+    local old=fs.combine(BACKUP,path)
+    if fs.exists(target) then fs.delete(target) end
+    if fs.exists(old) then
+     folder(target)
+     fs.copy(old,target)
+    end
+   end
+   local current='/tg/worker-config.dat'
+   local old=fs.combine(BACKUP,'tg/worker-config.dat')
+   if fs.exists(current) then fs.delete(current) end
+   if fs.exists(old) then fs.copy(old,current) end
+  end
+  fs.delete(BACKUP)
+ end
+ if fs.exists(STAGE) then fs.delete(STAGE) end
+end
+recoverPrevious()
 fs.makeDir(STAGE)
 local base='https://raw.githubusercontent.com/'..REPO..'/'..PINNED_REV..'/'
 local ok,err=pcall(function()
@@ -84,6 +107,8 @@ end
 local oldConfig=fs.exists('/tg/worker-config.dat')
 if oldConfig then fs.copy('/tg/worker-config.dat',
                            fs.combine(BACKUP,'tg/worker-config.dat')) end
+-- The READY marker is committed only after every backup is complete.
+write(fs.combine(BACKUP,'READY'),'backup complete')
 local replaced={}
 local installed,installErr=pcall(function()
  for _,path in ipairs(paths) do
