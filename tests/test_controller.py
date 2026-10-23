@@ -21,8 +21,8 @@ def test_continued_job_not_repeated_after_reboot(tmp_path):
     db=Colony(p);rec=db.register(hello())
     job=db.queue(7,"produce");db.sent(7,job.id)
     db2=Colony(p);rec=db2.register(hello({"id":job.id,"status":"started"}))
-    assert db2.reconcile_hello(rec,hello({"id":job.id,"status":"started"}))=="interrupted"
-    assert rec.outstanding.state=="interrupted"
+    assert db2.reconcile_hello(rec,hello({"id":job.id,"status":"started"}))=="resend_started"
+    assert rec.outstanding.state=="queued"
     complete=hello({"id":job.id,"status":"done",
         "result":{"type":"result","id":job.id,"ok":True}})
     assert db2.reconcile_hello(rec,complete)=="complete"
