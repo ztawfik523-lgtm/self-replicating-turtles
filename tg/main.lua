@@ -30,6 +30,12 @@ local ok, err = pcall(function()
     state.save()
     log.event('boot', 'generation=' .. tostring(state.data.generation))
     status()
+    -- Reconcile an interrupted workstation before attempting any other work.
+    if state.data.station then
+      if not require('station').recover() then return end
+    elseif state.data.processing then
+      if not require('process').resume() then return end
+    end
     -- Restore autonomous mining after a normal world restart.
     if state.data.autoSeed then
       state.data.autoSeed = false
