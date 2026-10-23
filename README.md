@@ -16,7 +16,7 @@ This is a fixed-recipe robotics experiment, **not** a general AI or mature unatt
 wget run https://raw.githubusercontent.com/ztawfik523-lgtm/self-replicating-turtles/main/install.lua
 ```
 
-The installer resolves a single Git commit for every file and checks the download before installation. Updates don't need `reboot`.
+The installer downloads all runtime files from a **pinned Git commit**, syntax-checks them before installation, and does not call `api.github.com` (which may be unavailable from Minecraft). The pin is updated for each new release. Updates don't need `reboot`.
 
 ## Lab manufacturing — first turtle from components
 
