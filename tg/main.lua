@@ -10,7 +10,9 @@ state.load()
 local function status()
   local d = state.data
   print(('TURTLE GENESIS %s  ID=%d  generation=%d'):format(config.version, os.getComputerID(), d.generation))
-  print('Mode:', config.mode, 'Fuel:', turtle.getFuelLevel())
+  local mode = d.miner and d.miner.running and 'auto-running'
+    or d.autonomyEnabled and 'auto-ready' or config.mode
+  print('Mode:', mode, 'Fuel:', turtle.getFuelLevel())
   print(('Pose local x=%d y=%d z=%d dir=%d'):format(d.pose.x, d.pose.y, d.pose.z, d.pose.dir))
   print(('Boots=%d moves=%d surveys=%d children=%d'):format(d.bootCount, d.moves, d.surveys, d.children))
   if d.pending then printError('HALTED uncertain action: ' .. tostring(d.pending.action)) end
