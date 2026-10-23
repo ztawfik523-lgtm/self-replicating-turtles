@@ -2,7 +2,7 @@
 
 Minecraft 1.20.1 Forge • CC: Tweaked • Advanced Peripherals • Turtlematic
 
-**Experimental v0.1.4**: persistent turtle state, fuel safeguards, limited mining survey and a lab reproduction test. Not autonomous or verified in Minecraft yet.
+**Experimental v0.1.5**: persistent turtle state, fuel safeguards, limited mining survey and a lab reproduction test. Not autonomous or verified in Minecraft yet.
 
 ## One-command installation (inside a turtle)
 
@@ -10,7 +10,7 @@ Minecraft 1.20.1 Forge • CC: Tweaked • Advanced Peripherals • Turtlematic
 wget run https://raw.githubusercontent.com/ztawfik523-lgtm/self-replicating-turtles/main/install.lua
 ```
 
-After installation, type `reboot`, then `tg/main.lua probe` and `tg/main.lua status`.
+After installation, run `tg/main.lua status`. No reboot is needed to use updated commands.
 
 The installer resolves the current GitHub commit, downloads and syntax-checks all files from that immutable revision before replacing any. It retains existing `/tg/state.dat`, `/tg/seed.dat`, and logs. It preserves an existing `/startup.lua` as `/startup.lua.genesis-backup` the first time it runs.
 
@@ -35,4 +35,8 @@ The entire sequence has **not yet been tested in Minecraft**. It deliberately ha
 
 A new uninitialized turtle item has no mounted filesystem. v0.1.4 tries to extract it from the drive, temporarily place and power it on to assign an ID, dig it back into inventory, return it to the drive and install the source files. The Mining Turtle must have an unobstructed air block behind it, directly opposite the drive. This physical sequence still requires an in-game test.
 
-If v0.1.3 failed at the **inserted** stage, leave the item in the disk drive and run `tg/main.lua resume` after updating/rebooting. The resume command is only allowed at the precise inserted stage. If it fails later, report the stage; do not retry blindly.
+If v0.1.3 failed at the **inserted** stage, leave the item in the disk drive and run `tg/main.lua resume` after updating. The resume command is only allowed at the precise inserted stage. If it fails later, report the stage; do not retry blindly.
+
+## Placement-stage diagnostics (v0.1.5)
+
+When an initial turtle has been placed but is not detected as a peripheral, leave it in place. Run `tg/main.lua diagnose` to inspect the front block and peripheral type. If the replication stage is `init_placed`, `tg/main.lua resume` rechecks the placed turtle and continues only when the expected block and computer methods are available. This avoids blindly creating another child.

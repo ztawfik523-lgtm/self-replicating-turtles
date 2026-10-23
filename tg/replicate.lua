@@ -44,19 +44,33 @@ local function takeFromDrive()
   return findTurtle()
 end
 
-local function initializeChild()
-  print('Uninitialized turtle: assigning a computer ID before cloning')
-  local child = takeFromDrive()
-  mark('init_retrieved')
-  turnAround()
-  mark('init_facing_child')
-  assert(not turtle.detect(), 'Space behind parent must be empty')
-  turtle.select(child)
-  assert(turtle.place(), 'Could not place fresh turtle for initialization')
-  mark('init_placed')
+local function describeFront()
+  local found, detail = turtle.inspect()
+  local block = found and detail.name or ('none (' .. tostring(detail) .. ')')
+  print('Front block: ' .. block)
+  print('Front peripheral: ' .. tostring(peripheral.getType('front')))
+  print('Attached: ' .. table.concat(peripheral.getNames(), ', '))
+  return found and detail.name or nil
+end
 
-  assert(peripheral.hasType('front', 'turtle'), 'Placed block is not a turtle')
-  local childComputer = assert(peripheral.wrap('front'))
+local function childPeripheral()
+  local name = describeFront()
+  assert(name and name:find('computercraft:turtle', 1, true),
+    'The block in front is not a CC turtle')
+  local p
+  -- A peripheral may become available a tick after placing a block.
+  for i = 1, 10 do
+    p = peripheral.wrap('front')
+    if p and type(p.turnOn) == 'function' and type(p.getID) == 'function'
+      and type(p.shutdown) == 'function' then return p end
+    sleep(0.1)
+  end
+  error('Front turtle block exists, but no computer peripheral can be accessed')
+end
+
+local function finishInitialization()
+  -- Also used to resume safely after a failed placement-stage check.
+  local childComputer = childPeripheral()
   childComputer.turnOn()
   sleep(0.5)
   local id = childComputer.getID()
@@ -66,7 +80,6 @@ local function initializeChild()
   sleep(0.2)
   mark('init_shutdown')
 
-  -- A Mining Turtle can dig its newly placed child and collect the item.
   assert(turtle.dig(), 'Could not pick up initialized child with mining upgrade')
   if not findTurtle() then turtle.suck(1) end
   assert(findTurtle(), 'Initialized child not recovered after digging')
@@ -80,6 +93,19 @@ local function initializeChild()
   sleep(0.3)
   assert(disk.getMountPath('front'),
     'Initialized turtle still has no mount; cannot program')
+end
+
+local function initializeChild()
+  print('Uninitialized turtle: assigning a computer ID before cloning')
+  local child = takeFromDrive()
+  mark('init_retrieved')
+  turnAround()
+  mark('init_facing_child')
+  assert(not turtle.detect(), 'Space behind parent must be empty')
+  turtle.select(child)
+  assert(turtle.place(), 'Could not place fresh turtle for initialization')
+  mark('init_placed')
+  finishInitialization()
 end
 
 local function programAndDeploy()
@@ -105,8 +131,7 @@ local function programAndDeploy()
     'Could not transfer starting fuel to child')
   mark('fuel_transferred')
 
-  assert(peripheral.hasType('front', 'turtle'), 'Placed child is not a turtle peripheral')
-  local childComputer = assert(peripheral.wrap('front'))
+  local childComputer = childPeripheral()
   childComputer.turnOn()
   sleep(0.5)
   assert(childComputer.isOn(), 'Child did not power on')
@@ -123,12 +148,22 @@ local function programAndDeploy()
   return true
 end
 
+function M.diagnose()
+  print('Replication stage:', tostring(state.data.replication and state.data.replication.stage))
+  describeFront()
+end
+
 function M.resume()
   assert(not state.data.pending and not state.data.trip,
     'Unsafe navigation/trip state; inspect before resuming')
   local job = assert(state.data.replication, 'No interrupted replication')
+  if job.stage == 'init_placed' then
+    print('Resuming placed child initialization')
+    finishInitialization()
+    return programAndDeploy()
+  end
   assert(job.stage == 'inserted',
-    'Safe automatic resume only supported at inserted stage, got: ' .. tostring(job.stage))
+    'Resume currently supports only inserted or init_placed, got: ' .. tostring(job.stage))
   assert(peripheral.hasType('front', 'drive'), 'Parent must still face the drive')
   assert(disk.isPresent('front'), 'Inserted child is missing from disk drive')
   print('Resuming from drive insertion')

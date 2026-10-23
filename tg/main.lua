@@ -29,6 +29,8 @@ local ok, err = pcall(function()
     status()
   elseif command == 'probe' then
     require('probe').run()
+  elseif command == 'diagnose' then
+    require('replicate').diagnose()
   elseif command == 'recover' then
     -- Safe only for surveys aborted before the first physical movement.
     local d = state.data
@@ -51,7 +53,7 @@ local ok, err = pcall(function()
   elseif command == 'resume' then
     require('replicate').resume()
   elseif command == 'help' then
-    print('tg/main.lua status | probe | recover | survey <1..12> | install [drive-side] | replicate | resume')
+    print('tg/main.lua status | probe | diagnose | recover | survey <1..12> | install [drive-side] | replicate | resume')
   else
     error('Unknown command. Run: tg/main.lua help')
   end
