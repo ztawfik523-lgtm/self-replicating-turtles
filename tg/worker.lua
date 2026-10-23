@@ -44,6 +44,10 @@ local function execute(job)
  end
  if a=='collect' then require('factory').collect();return snapshot() end
  if a=='station_pack' then require('station').pack();return snapshot() end
+ if a=='birth' then
+  require('workshop').run()
+  return {child_created=true,snapshot=snapshot()}
+ end
  if a=='produce' then
   assert(peripheral.hasType('front','drive') and not disk.isPresent('front'),
     'Need empty disk drive in front')

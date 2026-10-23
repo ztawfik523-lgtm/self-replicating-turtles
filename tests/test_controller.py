@@ -67,3 +67,15 @@ async def test_websocket_worker_protocol(tmp_path):
             await ws.send(json.dumps({"type":"result","id":job.id,"ok":True}))
             assert json.loads(await ws.recv())["accepted"]
     assert host.colony.turtles[7].outstanding is None
+
+def test_first_birth_is_single_high_level_job(tmp_path):
+    db=Colony(tmp_path/"db.json"); rec=db.register(hello())
+    kit={"minecraft:chest":1,"minecraft:cobblestone":22,
+         "minecraft:raw_iron":7,"minecraft:redstone":3,
+         "minecraft:sand":6,"minecraft:diamond":3,
+         "minecraft:oak_planks":14,"minecraft:coal":8}
+    rec.last_snapshot={"front":None,"bottom":"minecraft:grass_block",
+        "inventory":[{"name":k,"count":v} for k,v in kit.items()]}
+    assert next_job(rec)[0]=="birth"
+    rec.last_snapshot["inventory"][1]["count"]=21
+    assert next_job(rec) is None

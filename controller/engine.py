@@ -63,7 +63,7 @@ class Colony:
         return rec
 
     def queue(self, ident: int, action: str, args: dict[str, Any] | None = None) -> Job:
-        if action not in {"observe", "process", "produce", "collect", "station_pack"}:
+        if action not in {"observe", "process", "produce", "birth", "collect", "station_pack"}:
             raise ValueError("Unsupported turtle task: " + action)
         rec = self.turtles[ident]
         if rec.outstanding:
@@ -145,6 +145,29 @@ def shortages(snapshot: dict[str, Any]) -> dict[str, int]:
         deficit["coal_or_charcoal"] = 4-fuel
     return deficit
 
+def birth_inputs_ready(view: dict[str,Any]) -> bool:
+    """Minimum materials for experimental starter-chest first birth."""
+    items = count_items(view)
+    def n(name): return items.get(name, 0)
+    below,front = view.get("bottom"),view.get("front")
+    has_chest = below in {"minecraft:chest","minecraft:barrel"} or n("minecraft:chest")>0
+    has_furnace = front=="minecraft:furnace" or n("minecraft:furnace")>0
+    has_drive = front=="computercraft:disk_drive" or n("computercraft:disk_drive")>0
+    stone_goal = 7 if has_drive else 14
+    missing_stone = max(0,stone_goal-n("minecraft:stone"))
+    cobble = missing_stone+(0 if has_furnace or has_drive else 8)
+    fuel = 4+((max(0,7-n("minecraft:iron_ingot"))+7)//8)+((missing_stone+7)//8)
+    if n("minecraft:glass_pane")==0 and n("minecraft:glass")<6:
+        fuel+=1
+    wood = any(v>=14 for k,v in items.items()
+               if k.startswith("minecraft:") and k.endswith("_planks"))
+    glass = n("minecraft:glass_pane")>0 or n("minecraft:glass")>=6 or n("minecraft:sand")>=6
+    return (has_chest and wood and glass and n("minecraft:diamond")>=3
+        and n("minecraft:redstone")>=(1 if has_drive else 3)
+        and n("minecraft:iron_ingot")+n("minecraft:raw_iron")>=7
+        and n("minecraft:cobblestone")>=cobble
+        and n("minecraft:coal")+n("minecraft:charcoal")>=fuel)
+
 def next_job(rec: TurtleRecord) -> tuple[str,dict[str,Any]] | None:
     """Dispatch only operations already implemented by the Lua turtle.
     New base building and gathering operations will extend this policy.
@@ -154,14 +177,17 @@ def next_job(rec: TurtleRecord) -> tuple[str,dict[str,Any]] | None:
            ("processing", "manufacturing", "replication", "station")):
         return None
     items = count_items(view)
-    if view.get("bottom") not in {"minecraft:chest", "minecraft:barrel"}:
+    birth_ready=birth_inputs_ready(view)
+    if not birth_ready and view.get("bottom") not in {"minecraft:chest", "minecraft:barrel"}:
         return None
     coal = items.get("minecraft:coal", 0)+items.get("minecraft:charcoal", 0)
     planks = max((n for k,n in items.items() if k.endswith("_planks")), default=0)
     ready = (planks >= 14 and coal >= 4 and
              all(items.get(k, 0) >= n for k,n in CHILD_BILL.items()))
     action, args = None, {}
-    if ready and view.get("front") == "computercraft:disk_drive":
+    if birth_ready:
+        action = "birth"
+    elif ready and view.get("front") == "computercraft:disk_drive":
         action = "produce"
     elif view.get("front") == "minecraft:furnace" and coal:
         if items.get("minecraft:iron_ingot", 0) < 7 and items.get("minecraft:raw_iron", 0):
