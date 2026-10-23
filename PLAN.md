@@ -162,13 +162,50 @@ Therefore, a first-generation worksite needs about **22 cobblestone** for an eig
 
 ## 7. Sequence for the next implementation cycle
 
-1. Freeze the currently working source and retain a reproducible test world.
-2. Build the simplest `agent.lua` loop over existing `process`, `factory`, and `replicate`, with a real inventory/worksite observer and automatic decisions.
-3. Implement complete inventory+storage bill of materials (including furnace/drive and smelting inputs).
-4. Make stationary worksite creation/reuse and drive construction operate without manually placed blocks.
-5. Prove **M1** end-to-end in Minecraft before changing mining.
-6. Add **M2** harvesting/fuel bootstrap.
-7. Implement **M3** deficit-driven acquisition, then **M4** recursive offspring autonomy.
-8. Add optional scanners, external coordination and robust chunk loading when their measured benefits and mechanical compatibility justify the cost.
+1. Freeze the **in-game verified** factory/clone/smelter implementation and retain a reproducible test world.
+2. **Evaluate reusable code before creating replacements.** First: LAMA movement recovery, a mining task from existing projects, and the MIT-licensed Python/WebSocket BotNet architecture. Test feasibility separately before adoption.
+3. Choose a single movement/state authority; avoid combining incompatible tracking libraries.
+4. Wire a simple high-level agent/controller to the verified `process`, `factory`, and `replicate` behaviors. Add only missing glue. Decide whether the planner runs in Python or Lua based on an actual one-turtle prototype.
+5. Implement a reusable fixed worksite and complete resource bill (furnace/drive included). Prove **M1** without manually positioned facilities.
+6. Reuse/adapt working forestry and mining strategies for **M2/M3**, and add autonomous resource collection only where the borrowed approach falls short.
+7. Achieve **M4**: offspring follows the same lifecycle and generates a grandchild.
+8. Add scanners, optional centralized colony management and chunk loading where they measurably improve progress.
 
 **Design principle:** every addition must shorten the distance to the *next unattended birth* or remove a demonstrated cause of failure. Don't add recovery flags, a custom controller, scanner upgrade or portable station simply because they're technically interesting.
+
+## 8. Borrow-first integration strategy (2026-10-23)
+
+**New principle:** Existing programs, libraries, forks and external tools are legitimate building blocks. We are allowed to modify, combine, replace or extend code subject to its licensing and technical compatibility. A custom Minecraft mod is the one excluded approach; an external controller is explicitly allowed.
+
+### Concrete candidates audited
+
+| Candidate | What we'd reuse/test | Assessment/limitations |
+| --- | --- | --- |
+| [LAMA](https://github.com/fnuecke/lama) | Movement wrappers, saved coordinates, recovery after interrupted movement from fuel changes, waypoints | **MIT**. Promising replacement for current `nav.lua` lockouts. Archived, old code, requires all movement **and refueling** to go through LAMA; cannot mix trackers without adapters. Test on actual 1.20.1 CC:Tweaked. |
+| [ComputerCraft Turtle BotNet](https://github.com/SPOOKEXE/computercraft-turtle-botnet) | Python/WebSocket turtle worker/controller, persistence, recipe resolver, behavioral planning | **MIT**, archived/unfinished; README calls intended 'HIVE' unimplemented. Use code where it works; do not claim its self-replication is operational. Potential starting point for a controller, not a guaranteed turnkey solution. |
+| [Opus OS](https://github.com/kepler155c/opus) | Existing A* pathfinder, task launching, remote file access | **MIT**. Full OS is probably overkill; evaluate extracting the navigation component or adopting its movement API, not both Opus and LAMA blindly. |
+| [Equbuxu/mine](https://github.com/Equbuxu/mine) | Fuel/inventory/cargo handling, mining patterns, ore traversal and unloading | Useful algorithms, mature-looking single mining program. GitHub does not expose a repository license; **do not copy/distribute code until permission/license is confirmed**. Also inspect world/upgrade assumptions. |
+| [Actually Useful Turtles](https://github.com/helpmyRF24isntworking/computercraft) | Shared map, mining assignments, decentralized execution while host offline, checkpointing, dropoffs | Promising active and complex existing *in-game* host/worker system; relies on modems and GPS for startup; no recognized license. Assess and seek permission before code incorporation. |
+| [turtles2](https://github.com/Tjstretchalot/turtles2) | Restart-friendly farm, A* navigation, forestry and ore routines | Features closely match our needs, but uses a custom revocable 'Good, not Evil' license. Evaluate behavior, don't rely on unrestricted redistribution rights. |
+| [PPakalns/TreeFarm](https://github.com/PPakalns/TreeFarm) | Coordinated wood/sapling farming and self-refueling | Requires established tree farm layout, chests/saplings/modems and a controller. No recognized repo license. Useful second-stage tree farm design; not autonomous finding of the first tree. |
+| [runi95/turtle-control-panel](https://github.com/runi95/turtle-control-panel) | WebSocket status dashboard and interactive remote control | Useful only if a dashboard is genuinely needed. No recognized repo license; not a resource planner. |
+
+**Licensing:** Being public on GitHub is not the same as granting permission to copy/modify/distribute. Keep MIT attribution and LICENSE notices when copying MIT code. For repos without a recognized license, use published behavior as reference or request permission rather than importing source.
+
+### Integration rules
+
+- **Build the smallest adapter that gives the planner an operation:** `inspect`, `go_to`, `mine_area`, `harvest_trees`, `deposit`, `smelt`, `craft_child`, `initialize_child`, `launch_child`. These are interface examples, not a commitment to custom implementations.
+- **Delegate bounded work, not raw joystick instructions.** An external controller should ask a turtle to `mine_area` or `return_home`, and receive status, inventory and observed blocks. Turtle-side work continues during transient network loss; the controller can replan on reconnect.
+- **Exactly one movement authority.** If LAMA tracks position/refuel, every code path including third-party miners must route through it. Alternatively pick a different tracker; do not layer trackers.
+- **Reuse the hub.** A single established chest/furnace/disk drive may serve many children. Parents should not need to demolish shared equipment. New turtles can work from this base, or carry a bootstrap kit to establish another.
+- **No speculative library merges.** Run prospective scripts standalone in a sandbox world first, inventory their assumptions (modems, GPS, installed upgrades, fuel, fixed chest layout, startup files, license), then adapt in a branch. Preserve existing verified reproduction code.
+- **The controller is not a cheat oracle.** It sees data reported by turtles/peripherals and logs, not arbitrary Minecraft world state. Server/chunk loading remains separate.
+- **Measure success:** a complete autonomous reproduction, total human actions after start, fuel/movement wasted, recovery after restart, and first grandchild. Prefer deleting custom code over adding more glue if a proven implementation replaces it.
+
+### Immediate three experiments before major architecture changes
+
+1. **LAMA isolated:** Verify movement, orientation and refuel accounting across normal travel and forced restart/chunk unload; inspect whether it conflicts with cloning/startup. Do not integrate into `main` until it passes.
+2. **Existing miner isolated:** Compare selected published miner algorithm with our own for 30–50 blocks of resource acquisition and return to chest. Prefer code with explicit reuse permission. No need to test half a dozen scripts in the main turtle.
+3. **Minimal external controller isolated:** Python WebSocket service connects to **one** turtle, receives inventory/fuel/pose snapshot, assigns a high-level task, gets result, and survives turtle reconnect. Base it on BotNet concepts/code if compatible, without altering the working factory. If this is simpler than Lua-only planning, use it.
+
+After these tests, commit to **one** coherent control stack, then integrate our verified craft/smelt/clone primitives. No more bespoke architecture before checking whether existing code covers it.
