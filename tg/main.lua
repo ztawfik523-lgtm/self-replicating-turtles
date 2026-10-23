@@ -19,6 +19,7 @@ local function status()
   if d.trip then printError('HALTED interrupted survey: ' .. tostring(d.trip.out) .. ' steps out') end
   if d.replication then printError('HALTED interrupted replication: ' .. tostring(d.replication.stage)) end
   if d.manufacture then printError('HALTED manufacturing stage: ' .. tostring(d.manufacture.phase)) end
+  if d.processing then printError('HALTED processing stage: ' .. tostring(d.processing.stage)) end
   if d.miner then require('miner').status() end
 end
 
@@ -63,6 +64,12 @@ local ok, err = pcall(function()
     print('Staged inventory retrieved from chest')
   elseif command == 'factory-abort' then
     require('factory').abort()
+  elseif command == 'furnace-check' then
+    require('process').probe()
+  elseif command == 'process' then
+    require('process').run(args[2])
+  elseif command == 'process-reset' then
+    require('process').reset()
   elseif command == 'make' then
     require('factory').make()
   elseif command == 'produce' then
@@ -92,7 +99,7 @@ local ok, err = pcall(function()
   elseif command == 'resume' then
     require('replicate').resume()
   elseif command == 'help' then
-    print('tg/main.lua status | materials | make | produce | collect | factory-abort | probe | diagnose | recover | auto [tunnels] | stop | rebase | survey <1..12> | install [drive-side] | replicate | resume')
+    print('tg/main.lua status | materials | furnace-check | process <type> | process-reset | make | produce | collect | factory-abort | probe | diagnose | recover | auto [tunnels] | stop | rebase | survey <1..12> | install [drive-side] | replicate | resume')
   else
     error('Unknown command. Run: tg/main.lua help')
   end

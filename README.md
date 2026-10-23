@@ -2,11 +2,11 @@
 
 Minecraft **1.20.1 Forge**, CC: Tweaked, Advanced Peripherals, Turtlematic.
 
-## Current status — 0.3.0
+## Current status — 0.3.1
 
-- **Verified in Minecraft:** autonomous tunnel mining, parent programming and booting a pre-made offspring.
-- **Implemented and mock-tested (not yet verified in Minecraft):** crafting a new Mining + Crafting Turtle from ordinary components, with the parent's inventory managed automatically.
-- **Not implemented:** automated gathering of every manufacturing resource, raw-ore smelting, charcoal farming, building a self-supplied disk drive, reliable long-range exploration.
+- **Verified in Minecraft:** mining, manufactured offspring from supplied components, parent programming and booting an offspring.
+- **Implemented and mock-tested (not yet verified in Minecraft):** furnace processing of raw iron, gold, cobblestone, sand and logs using temporary inventory storage.
+- **Not implemented:** automated gathering of every manufacturing resource, harvesting/replanting trees, assembling infrastructure without supplied blocks, reliable long-range exploration.
 
 This is a fixed-recipe robotics experiment, **not** a general AI or mature unattended survival colony.
 
@@ -63,3 +63,20 @@ All recipes were based on the CC: Tweaked recipe source, including the two upgra
 - CC: Tweaked RecipeProvider.java: patterns `###/#R#/#G#` for computer and `###/#C#/#I#` for turtle.
 
 The design goal remains unattended reproduction from one starting turtle. The new manufacturing phase is a component test toward it, not completion of that goal.
+
+## Furnace processing (experimental v0.3.1)
+
+This is another small building block toward using naturally mined/harvested materials rather than receiving finished ingots and blocks.
+
+**Setup:** an empty furnace directly in front of the turtle and an **empty chest or barrel directly below**. Give the turtle one of the supported raw inputs and at least one coal or charcoal. Use the same Mining + Crafting Turtle already tested for manufacturing. No movement or reboot is necessary.
+
+```sh
+tg/main.lua furnace-check
+tg/main.lua process iron
+```
+
+Available processing types: `iron` (raw iron → ingots), `gold`, `stone` (cobblestone → stone), `glass` (sand → glass) and `charcoal` (ordinary logs → charcoal). Each call processes at most one stack using available coal/charcoal, transfers materials through the chest and furnace inventory peripherals, waits for outputs, then retrieves them. It leaves the furnace and chest empty on success.
+
+**Not yet verified in Minecraft:** even though CC: Tweaked documents adjacent generic inventory APIs, the furnace-to-chest item transfer may depend on Forge's inventory exposure. `furnace-check` checks the availability of methods, not actual item-transfer behavior. If `process` stops, read the saved stage from `tg/main.lua status` and inspect the furnace/chest before moving anything. Do not retry automatically. If the furnace and chest are manually emptied and contents accounted for, `tg/main.lua process-reset` clears the interrupted flag. Previous inventory is not deleted.
+
+The furnace, chest, coal, and raw inputs must currently be supplied or acquired separately. The next goal is to make harvesting/mining feed this fixed processing-and-manufacturing chain automatically.
