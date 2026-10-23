@@ -57,8 +57,14 @@ end
 local function ensureClear(side)
  local present,detail=inspectAt(side)
  if not present then return end
- assert(detail and soft[detail.name],
-  'Cannot create station: protected '..side..' block '..tostring(detail and detail.name))
+ -- Try ordinary excavation rather than refusing every unfamiliar terrain block.
+ -- Never mine an inventory or dangerous fluid as part of making a station.
+ local name=detail and detail.name or ''
+ assert(name~='minecraft:water' and name~='minecraft:lava'
+  and not name:find('chest') and not name:find('barrel')
+  and not name:find('furnace') and not name:find('shulker_box')
+  and not name:find('computercraft:'),
+  'Cannot place station over '..tostring(name))
  local ok,reason
  if side=='front' then ok,reason=turtle.dig()
  else ok,reason=turtle.digDown() end
@@ -113,69 +119,116 @@ local function emptyPeripheral(side)
    'Cannot inspect storage inventory at '..side)
  return next(p.list())==nil
 end
+-- Reconcile saved state with the actual blocks. A crash after placement or
+-- smelting should not force the player to manually clear a bookkeeping flag.
+local function reconcile()
+ local s=state.data.station
+ if not s then return false end
+ local front,below=blockName('front'),blockName('bottom')
+ if s.phase=='placing_chest' and below=='minecraft:chest' then
+  s.ownedChest=true
+ end
+ if s.phase=='placing_furnace' and front=='minecraft:furnace' then
+  s.ownedFurnace=true
+ end
+ state.save()
+ return true
+end
+
 function M.pack()
- local s=assert(state.data.station,'No active station to pack')
- assert(not state.data.processing,'Processing still in progress; inspect contents')
+ local s=state.data.station
+ if not s then return true end
+ if state.data.processing then
+  local ok,why=process.resume()
+  if not ok then
+   print('Processing paused: '..tostring(why))
+   return false
+  end
+ end
+ local front=blockName('front')
+ local below=blockName('bottom')
  if s.ownedFurnace then
-  assert(blockName('front')=='minecraft:furnace','Own furnace not found in front')
-  assert(emptyPeripheral('front'),'Furnace still holds items; do not break')
-  assert(roomFor('minecraft:furnace'),'Need inventory space to collect furnace')
-  mark('picking_up_furnace')
-  assert(turtle.dig(),'Could not collect empty furnace')
+  if front=='minecraft:furnace' then
+   assert(emptyPeripheral('front'),'Furnace is still processing or contains resources')
+   assert(roomFor('minecraft:furnace'),'Need inventory space to reclaim furnace')
+   mark('picking_up_furnace')
+   assert(turtle.dig(),'Unable to collect furnace')
+  elseif front then
+   error('A different block replaced the furnace: '..tostring(front))
+  end
   s.ownedFurnace=false
   mark('furnace_collected')
  end
  if s.ownedChest then
-  assert(blockName('bottom')=='minecraft:chest','Own chest not found below')
-  assert(emptyPeripheral('bottom'),'Chest still holds items; run collect')
-  assert(roomFor('minecraft:chest'),'Need inventory space to collect chest')
-  mark('picking_up_chest')
-  assert(turtle.digDown(),'Could not collect empty chest')
+  if below=='minecraft:chest' then
+   if not emptyPeripheral('bottom') then
+    factory.collect() -- retrieve output without making the player do it
+   end
+   assert(emptyPeripheral('bottom'),'Some resources still in chest')
+   assert(roomFor('minecraft:chest'),'Need inventory space to reclaim chest')
+   mark('picking_up_chest')
+   assert(turtle.digDown(),'Unable to collect chest')
+  elseif below then
+   error('A different block replaced the chest: '..tostring(below))
+  end
   s.ownedChest=false
   mark('chest_collected')
  end
  state.data.station=nil
  state.save()
  log.event('station','packed')
- print('Station packed; equipment carried in inventory')
+ print('Station equipment recovered')
+ return true
 end
 
 function M.run(kind)
  state.assertSafe()
- assert(not state.data.manufacture,'Manufacturing interrupted; inspect it first')
- assert(not state.data.processing,'Processing interrupted; inspect furnace first')
- assert(not state.data.station,'Previous station still active; inspect or station-pack')
  assert(kind=='iron' or kind=='gold' or kind=='glass'
    or kind=='stone' or kind=='charcoal',
    'Use: station iron|gold|glass|stone|charcoal')
+ assert(not state.data.manufacture,'Finish manufacturing before starting station')
+
  local prev=turtle.getSelectedSlot()
- -- Validate both pieces of required equipment before touching the terrain.
- local below=blockName('bottom')
- local front=blockName('front')
- if below~='minecraft:chest' and below~='minecraft:barrel' then
-  assert(amount('minecraft:chest')>=1,'Carry one chest item')
+ local old=state.data.station
+ if old then
+  reconcile()
+  -- If smelting was already started, complete/reconcile that transaction and
+  -- collect the equipment. Do not start a second identical smelting batch.
+  if state.data.processing or old.phase:find('^processing_')
+    or old.phase=='processing_finished' or old.phase:find('pickup')
+    or old.phase:find('picking_up') or old.phase:find('_collected) then
+   print('Finishing interrupted station automatically')
+   local ok=M.pack()
+   turtle.select(prev)
+   return ok
+  end
+  print('Continuing partially placed station')
+ else
+  -- Only validate initial supplies on a brand-new operation.
+  local below,front=blockName('bottom'),blockName('front')
+  if below~='minecraft:chest' and below~='minecraft:barrel' then
+   assert(amount('minecraft:chest')>=1,'Need chest item in inventory')
+  end
+  if front~='minecraft:furnace' then
+   assert(amount('minecraft:furnace')>=1 or amount('minecraft:cobblestone')>=8,
+     'Need furnace item or 8 cobblestone')
+  end
+  state.data.station={phase='starting',ownedChest=false,ownedFurnace=false}
+  state.save()
  end
- if front~='minecraft:furnace' then
-  assert(amount('minecraft:furnace')>=1 or amount('minecraft:cobblestone')>=8,
-    'Carry a furnace or eight cobblestone')
- end
- assert(not below or below=='minecraft:chest' or below=='minecraft:barrel' or soft[below],
-   'Unsafe block beneath turtle: '..tostring(below))
- assert(not front or front=='minecraft:furnace' or soft[front],
-   'Unsafe block in front: '..tostring(front))
- state.data.station={phase='starting',ownedChest=false,ownedFurnace=false}
- state.save()
  placeChest()
  local chest=peripheral.wrap('bottom')
- assert(chest and type(chest.list)=='function' and next(chest.list())==nil,
-   'Chest below must be empty')
+ assert(chest and type(chest.list)=='function','Storage unavailable below')
+ if next(chest.list()) then
+  factory.collect()
+ end
  placeFurnace()
  mark('processing_'..kind)
- -- A failure leaves the station in place with its recovery state.
  process.run(kind)
  mark('processing_finished')
- M.pack()
+ local ok=M.pack()
  turtle.select(prev)
- print('Portable processing complete')
+ if ok then print('Portable processing complete') end
+ return ok
 end
 return M
