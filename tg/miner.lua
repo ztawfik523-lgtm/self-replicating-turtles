@@ -25,7 +25,7 @@ local WASTE = {
   ['minecraft:andesite']=true, ['minecraft:tuff']=true,
   ['minecraft:gravel']=true, ['minecraft:flint']=true,
   ['minecraft:sand']=true, ['minecraft:netherrack']=true,
-  ['minecraft:calcite']=true,
+  ['minecraft:calcite']=true, ['minecraft:wheat_seeds']=true,
 }
 local MAX_RADIUS, MAX_FLOORS, FIRST_DESCENT, FLOOR_STEP = 32, 7, 24, 16
 local FUEL_RESERVE = 32
@@ -57,7 +57,7 @@ local function clearJunk()
   for slot=1,16 do
     local item=turtle.getItemDetail(slot)
     if item and WASTE[item.name] then
-      if (kept[item.name] or 0) >= 64 then
+      if (kept[item.name] or 0) > 0 then
         turtle.select(slot)
         turtle.dropDown()
       else
