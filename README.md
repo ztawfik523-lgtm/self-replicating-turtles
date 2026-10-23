@@ -2,7 +2,7 @@
 
 Minecraft **1.20.1 Forge**, CC: Tweaked, Advanced Peripherals, Turtlematic.
 
-## Current status — 0.3.1
+## Current status — 0.3.2
 
 - **Verified in Minecraft:** mining, manufactured offspring from supplied components, parent programming and booting an offspring.
 - **Implemented and mock-tested (not yet verified in Minecraft):** furnace processing of raw iron, gold, cobblestone, sand and logs using temporary inventory storage.
@@ -80,3 +80,19 @@ Available processing types: `iron` (raw iron → ingots), `gold`, `stone` (cobbl
 **Not yet verified in Minecraft:** even though CC: Tweaked documents adjacent generic inventory APIs, the furnace-to-chest item transfer may depend on Forge's inventory exposure. `furnace-check` checks the availability of methods, not actual item-transfer behavior. If `process` stops, read the saved stage from `tg/main.lua status` and inspect the furnace/chest before moving anything. Do not retry automatically. If the furnace and chest are manually emptied and contents accounted for, `tg/main.lua process-reset` clears the interrupted flag. Previous inventory is not deleted.
 
 The furnace, chest, coal, and raw inputs must currently be supplied or acquired separately. The next goal is to make harvesting/mining feed this fixed processing-and-manufacturing chain automatically.
+
+## Portable furnace station (v0.3.2 — experimental)
+
+A useful autonomous primitive: the turtle can deploy a chest below itself, manufacture a furnace from eight cobblestone, place it in front, smelt raw materials, collect the processed goods, then pick up the now-empty furnace and chest. It does **not** need either block pre-positioned.
+
+**Supplies in the turtle inventory:** 1 chest item, 8 cobblestone (or an already-crafted furnace), some raw iron, coal/charcoal and a **crafting upgrade** alongside the pickaxe if you want to craft the furnace. Alternatively, a carried furnace works without crafting. Keep the parent on ordinary terrain, not above machinery or lava; its front and below blocks must be air or simple ground (dirt, stone, etc.). It will dig away one ground block where needed to create a chest space.
+
+```sh
+tg/main.lua station iron
+```
+
+Other supported jobs: `gold`, `stone`, `glass`, `charcoal`. The program uses the verified furnace processing subsystem. **In-game station deployment and packing are unverified.** Reuses an existing chest/furnace if one is already installed but won't dig those up unless it placed them itself.
+
+On failure the station state is retained: `tg/main.lua status` displays the current phase. Do not start a new station in the same location. After checking and safely removing any materials in the furnace/chest, `tg/main.lua station-pack` tries to reclaim only the equipment it placed. If a processing operation is still marked interrupted, empty/reconcile inventories before using `tg/main.lua process-reset` and then `station-pack`. Do not break a filled furnace/chest: you may lose materials.
+
+**Limitations:** Still requires carrying a chest item and fuel. The next dependencies are making a chest from harvested planks and acquiring the cobblestone/fuel without player assistance. No need to build permanent stations or route back to them.
