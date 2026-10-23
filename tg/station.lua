@@ -196,7 +196,8 @@ function M.run(kind)
   -- collect the equipment. Do not start a second identical smelting batch.
   if state.data.processing or old.phase:find('^processing_')
     or old.phase=='processing_finished' or old.phase:find('pickup')
-    or old.phase:find('picking_up') or old.phase:find('_collected
+    or old.phase:find('picking_up',1,true)
+    or old.phase:find('_collected',1,true) then
    print('Finishing interrupted station automatically')
    local ok=M.pack()
    turtle.select(prev)
