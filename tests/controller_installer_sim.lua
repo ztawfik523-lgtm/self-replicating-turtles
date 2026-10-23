@@ -101,6 +101,27 @@ assert(launches==0)
 print('PASS: failed replacement restores old startup/worker/config')
 
 reset()
+-- A game shutdown after the READY marker but before installing all files
+-- must restore the previous generation before doing anything else.
+dirs['/tg-controller-backup']=true
+files['/tg-controller-backup/READY']='backup complete'
+files['/tg-controller-backup/startup.lua']='legacy startup'
+files['/tg-controller-backup/tg/worker.lua']='legacy worker'
+files['/tg-controller-backup/tg/main.lua']='legacy main'
+files['/tg-controller-backup/tg/worker-config.dat']='ws://previous-host:8765'
+files['/startup.lua']='interrupted new startup'
+files['/tg/worker.lua']='interrupted new worker'
+failFetch='tg/factory.lua'
+ok=pcall(installer,'ws://controller:8765')
+assert(not ok)
+assert(files['/startup.lua']=='legacy startup')
+assert(files['/tg/worker.lua']=='legacy worker')
+assert(files['/tg/main.lua']=='legacy main')
+assert(files['/tg/worker-config.dat']=='ws://previous-host:8765')
+assert(not fs.exists('/tg-controller-backup'))
+print('PASS: interrupted install is automatically rolled back next launch')
+
+reset()
 assert(installer('ws://controller:8765')==nil)
 assert(files['/startup.lua']==readRepo('startup.lua'))
 assert(files['/tg/worker.lua']==readRepo('tg/worker.lua'))
