@@ -1,5 +1,6 @@
 -- Exercise actual clone.install with a virtual CC filesystem and drive.
 package.path='tg/?.lua;'..package.path
+os.getComputerID=function()return 7 end
 local hostFiles,media,dirs={}, {}, {}
 local function hostRead(p)
  local f=io.open(p:gsub('^/',''),'rb')
