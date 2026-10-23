@@ -81,15 +81,19 @@ for _,path in ipairs(paths) do
   fs.copy('/'..path,dest)
  end
 end
+local oldConfig=fs.exists('/tg/worker-config.dat')
+if oldConfig then fs.copy('/tg/worker-config.dat',
+                           fs.combine(BACKUP,'tg/worker-config.dat')) end
 local replaced={}
 local installed,installErr=pcall(function()
  for _,path in ipairs(paths) do
   local source=fs.combine(STAGE,path)
   local target='/'..path
   folder(target)
+  -- Record BEFORE deleting the old file, so a failed copy also rolls back.
+  replaced[#replaced+1]=path
   if fs.exists(target) then fs.delete(target) end
   fs.copy(source,target)
-  replaced[#replaced+1]=path
  end
  write('/tg/worker-config.dat',url)
 end)
@@ -98,6 +102,10 @@ if not installed then
   local target='/'..path
   if fs.exists(target) then fs.delete(target) end
   if existing[path] then fs.copy(fs.combine(BACKUP,path),target) end
+ end
+ if fs.exists('/tg/worker-config.dat') then fs.delete('/tg/worker-config.dat') end
+ if oldConfig then
+  fs.copy(fs.combine(BACKUP,'tg/worker-config.dat'),'/tg/worker-config.dat')
  end
  cleanup()
  error('Install rolled back: '..tostring(installErr),0)
