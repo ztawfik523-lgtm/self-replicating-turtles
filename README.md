@@ -110,3 +110,7 @@ tg/main.lua station-drive
 The drive command uses the existing chest for recipe staging and, when necessary, dismantles only an **empty furnace** in front. The chest may be below already or supplied as an item. A disk drive remains installed until `tg/main.lua station-pack` is invoked after reproduction, or until the next phase of autonomous station management is implemented.
 
 This is unverified in Minecraft and not yet a self-sufficient lifecycle; it removes additional manually placed infrastructure dependencies.
+
+### Bootstrap order
+
+A turtle with mining and crafting upgrades can begin station construction by collecting planks, **before** filling its inventory with other materials, then running `tg/main.lua station-chest`. This crafts and places the first chest below it. Later `tg/main.lua station iron` or `tg/main.lua station-drive` can reuse that chest, and `tg/main.lua station-pack` will recover it. The command is designed for early automated invocation, not continuous manual setup.

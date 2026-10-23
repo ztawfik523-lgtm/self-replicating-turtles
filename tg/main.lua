@@ -73,6 +73,8 @@ local ok, err = pcall(function()
     require('process').reset()
   elseif command == 'station' then
     require('station').run(args[2])
+  elseif command == 'station-chest' then
+    require('station').chest()
   elseif command == 'station-drive' then
     require('station').drive()
   elseif command == 'station-pack' then
@@ -106,7 +108,7 @@ local ok, err = pcall(function()
   elseif command == 'resume' then
     require('replicate').resume()
   elseif command == 'help' then
-    print('tg/main.lua status | materials | furnace-check | process <type> | process-reset | station <type> | station-drive | station-pack | make | produce | collect | factory-abort | probe | diagnose | recover | auto [tunnels] | stop | rebase | survey <1..12> | install [drive-side] | replicate | resume')
+    print('tg/main.lua status | materials | furnace-check | process <type> | process-reset | station <type> | station-chest | station-drive | station-pack | make | produce | collect | factory-abort | probe | diagnose | recover | auto [tunnels] | stop | rebase | survey <1..12> | install [drive-side] | replicate | resume')
   else
     error('Unknown command. Run: tg/main.lua help')
   end

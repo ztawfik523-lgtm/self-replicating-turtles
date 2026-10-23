@@ -151,6 +151,7 @@ function M.pack()
   mark('picking_up_chest')
   assert(turtle.digDown(),'Could not collect empty chest')
   s.ownedChest=false
+  state.data.initialChestOwned=false
   mark('chest_collected')
  end
  state.data.station=nil
@@ -190,7 +191,7 @@ function M.drive()
  assert(amount('computercraft:disk_drive')>=1
    or (amount('minecraft:stone')>=7 and amount('minecraft:redstone')>=2),
   'Need disk drive item or 7 stone + 2 redstone')
- state.data.station={phase='drive_start',ownedChest=false,ownedFurnace=false,ownedDrive=false}
+ state.data.station={phase='drive_start',ownedChest=state.data.initialChestOwned==true,ownedFurnace=false,ownedDrive=false}
  state.save()
  placeChest()
  local chest=peripheral.wrap('bottom')
@@ -213,6 +214,26 @@ function M.drive()
  mark('drive_placed')
  turtle.select(prev)
  print('Disk drive ready; use produce to manufacture/program offspring')
+end
+
+-- Bootstrap is a separate early-life step, before ores fill the inventory.
+function M.chest()
+ state.assertSafe()
+ assert(not state.data.station and not state.data.processing and not state.data.manufacture,
+  'A workstation/processor is already active')
+ local below=blockName('bottom')
+ if below=='minecraft:chest' or below=='minecraft:barrel' then
+  print('Storage chest already below')
+  return true
+ end
+ state.data.station={phase='bootstrap',ownedChest=false,ownedFurnace=false,ownedDrive=false}
+ state.save()
+ placeChest()
+ state.data.initialChestOwned=true
+ state.data.station=nil
+ state.save()
+ print('Initial chest built and ready')
+ return true
 end
 
 function M.run(kind)
@@ -245,7 +266,7 @@ function M.run(kind)
    'Unsafe block beneath turtle: '..tostring(below))
  assert(not front or front=='minecraft:furnace' or soft[front],
    'Unsafe block in front: '..tostring(front))
- state.data.station={phase='starting',ownedChest=false,ownedFurnace=false}
+ state.data.station={phase='starting',ownedChest=state.data.initialChestOwned==true,ownedFurnace=false}
  state.save()
  placeChest()
  local chest=peripheral.wrap('bottom')
