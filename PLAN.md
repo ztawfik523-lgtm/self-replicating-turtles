@@ -76,15 +76,36 @@ A single Mining + Crafting Turtle starts with an initial fuel supply in an ordin
 - If a milestone fails, use logs to identify cause and fix it before considering another user run.
 - No custom mod. External controllers, third-party scripts, software adaptations and standard mod addons are all allowed.
 
-## Development record — first-birth integration slice (2026-10-23)
+## Implementation status — 2026-10-24
 
-**Implemented in source, not deployed to the player's turtle:**
-- Python planner identifies the full starter material kit and queues exactly one `birth` task.
-- `tg/workshop.lua` composes chest placement, furnace crafting/placement, iron+stone+glass smelting, glass panes, disk drive, offspring factory, initialization, filesystem cloning, fuel, deployment and boot.
-- New worker can resume an interrupted birth task by journal ID, and the workshop tracks child count to avoid manufacturing a duplicate after a completed birth.
-- Controller connection information, experimental worker, workshop, and worker-entry are inherited into controller-enabled offspring. Legacy clones without controller config continue to use legacy boot.
-- Parent/child registration, WebSocket command execution, Python planning and in-memory Lua workshop/restart simulations are now part of automated checks.
+**Milestone 1 has an offline-integrated release candidate; it has NOT passed a
+real Minecraft end-to-end run.** The player has not been asked to debug or
+run intermediate checks.
 
-**Still missing before first player milestone:** an actual mod/game integration run (which is deferred until the integration is ready as a single worthwhile test); test of the built-in CC:Tweaked physical inventory and crafting interaction as one complete chain; fixing power failure during partial child deployment; complete installer/manifest update for new runtime; robust starter chest crafting from an empty-inventory wood bootstrap. The present first-birth simulation starts with **one chest ITEM** in inventory, not a prebuilt placed chest. No one should claim self-sustaining gathering or finished multi-generation autonomy based on these mocks.
+Implemented:
+- Controller WebSocket job scheduler, persistent job IDs, and snapshot-based
+  resource accounting. Results update the controller's inventory immediately,
+  avoiding stale repeated births.
+- One `birth` job from **raw inventory inputs**: the turtle crafts its initial
+  chest from **22 planks** without pre-existing storage; crafts a furnace and
+  disk drive; smelts iron, stone, and glass; manufactures/programs/boots a child.
+- Controller worker and configuration inherited into offspring. Legacy
+  v0.3.5 turtles still use their old startup if not controller-enabled.
+- Persistent worker job journal with backup; a completed birth records its
+  job ID in persistent state, avoiding duplicates when the final response
+  is lost.
+- Dedicated experimental `controller/install.lua`, keeping the stable root
+  `install.lua` pinned to v0.3.5. Simulated download/install/rollback/restart
+  recovery passes automated checks.
 
-**No player installation/test requested for this slice.**
+**What prevents claiming Milestone 1 is verified:** the real Minecraft placement,
+furnace, child initialization, disk filesystem and launch sequence still needs
+one integrated game run; some rare interruptions mid-crafting/child placement
+are not fully recovered without further physical reconciliation.
+
+**Future work after that acceptance gate:** wood/charcoal base bootstrap from
+terrain, mining and resource acquisition using adapted existing code; then
+true self-replication and multiple generations. No repeated player micro-tests.
+
+See [controller/README.md](controller/README.md) for the exact experimental
+bill of materials and test status.
