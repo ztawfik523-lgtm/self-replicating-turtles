@@ -1,7 +1,7 @@
 -- Turtle Genesis installer. Pin downloads to a fixed commit; no api.github.com dependency.
 -- Run inside a turtle with: wget run <URL to this file>
 local REPO = 'ztawfik523-lgtm/self-replicating-turtles'
-local sha = '6e0aa8ff284ed9847337785002079c7ebe638a65'
+local sha = 'a4cf852fc6c65546a8b10ea07854b142ef943ad3'
 local STAGE = '/tg-download'
 local EXPECTED = '0.3.5'
 local FILES = {
