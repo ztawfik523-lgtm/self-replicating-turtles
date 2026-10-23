@@ -86,8 +86,8 @@ Implemented:
 - Controller WebSocket job scheduler, persistent job IDs, and snapshot-based
   resource accounting. Results update the controller's inventory immediately,
   avoiding stale repeated births.
-- One `birth` job from **raw inventory inputs**: the turtle crafts its initial
-  chest from **22 planks** without pre-existing storage; crafts a furnace and
+- One `birth` job from **inventory inputs (including one chest item)**: the turtle **places a carried chest item** without player-positioned storage;
+  crafts a furnace and
   disk drive; smelts iron, stone, and glass; manufactures/programs/boots a child.
 - Controller worker and configuration inherited into offspring. Legacy
   v0.3.5 turtles still use their old startup if not controller-enabled.
@@ -109,3 +109,12 @@ true self-replication and multiple generations. No repeated player micro-tests.
 
 See [controller/README.md](controller/README.md) for the exact experimental
 bill of materials and test status.
+
+**Bootstrap correctness correction (2026-10-24):** CC:Tweaked `turtle.craft`
+requires *every* inventory slot outside the recipe to be empty. Therefore
+using the seven off-grid slots as a crafting buffer for the first chest with
+other materials present was invalid. The Milestone 1 starter kit includes one
+**chest item**, which the turtle places itself; no prebuilt chest block or
+furnace/drive is required. Milestone 2 makes a chest early from gathered wood
+before collecting mixed resources. Regression tests now reject the impossible
+chestless mixed-inventory case.

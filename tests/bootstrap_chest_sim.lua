@@ -1,4 +1,4 @@
--- Full first-birth simulation starting with ONLY raw materials, no chest item.
+-- Reject invalid chestless first-birth kit; then exercise staged chest item.
 -- Unlike earlier tests, chest bootstrap uses realistic 16 inventory slots,
 -- transferTo and turtle.craft(1).
 package.path='tg/?.lua;'..package.path
@@ -151,6 +151,10 @@ package.loaded.replicate={
 }
 local w=dofile('tg/workshop.lua')
 assert(count('minecraft:chest')==0)
+local ok,reason=pcall(w.run,'controller:1')
+assert(not ok and tostring(reason):find('chest'))
+assert(born==0 and st.data.birth==nil)
+put('minecraft:chest',1)
 assert(w.run('controller:1')==true)
 assert(born==1)
 assert(world.bottom=='minecraft:chest')
@@ -161,4 +165,4 @@ assert(count('minecraft:oak_planks')==0)
 -- Re-running the same job ID must acknowledge completion, not clone again.
 assert(w.run('controller:1'))
 assert(born==1)
-print('PASS: seven raw material stacks -> first chest -> furnace/drive -> offspring')
+print('PASS: chest item required; starter kit -> placed worksite -> offspring')

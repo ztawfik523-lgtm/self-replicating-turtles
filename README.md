@@ -4,7 +4,7 @@ Minecraft **1.20.1 Forge**, CC: Tweaked, Advanced Peripherals, Turtlematic.
 
 ## Current status — 0.3.5 (recovery patch; in-game test pending)
 
-**New experimental track:** `0.4.0-dev` provides a Python controller and Lua worker in `controller/`, `tg/worker.lua` and `tg/workshop.lua`, with a **separate** installer `controller/install.lua`. The stable root installer still downloads the pinned v0.3.5 version. The first-birth workflow passes **offline simulations only**, and no controller upgrade has been installed in the user's Minecraft world. See [PLAN.md](PLAN.md) and [controller/README.md](controller/README.md).
+**New experimental track:** `0.4.0-dev` provides a Python controller and Lua worker in `controller/`, `tg/worker.lua` and `tg/workshop.lua`, with a **separate** installer `controller/install.lua`. The stable root installer still downloads the pinned v0.3.5 version. The first-birth workflow with a **carried chest item** passes **offline simulations only**, and no controller upgrade has been installed in the user's Minecraft world. See [PLAN.md](PLAN.md) and [controller/README.md](controller/README.md).
 
 - **Verified in Minecraft:** mining, manufactured offspring from supplied components, parent programming and booting an offspring.
 - **Implemented and mock-tested (not yet verified in Minecraft):** furnace processing of raw iron, gold, cobblestone, sand and logs using temporary inventory storage.

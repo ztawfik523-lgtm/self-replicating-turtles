@@ -75,73 +75,20 @@ local function clearFor(side)
  else ok,reason=turtle.dig() end
  assert(ok,'Cannot clear '..side..': '..tostring(reason))
 end
--- Bootstrap a chest from raw planks without having any inventory storage.
--- The seven non-crafting slots hold unrelated resources and spare planks.
-local function bootstrapChest()
- if count('minecraft:chest')>0 then return end
- local wood
- for i=1,16 do
-  local d=turtle.getItemDetail(i)
-  if d and d.name:match('^minecraft:[%a_]+_planks$')
-      and count(d.name)>=22 then wood=d.name;break end
- end
- assert(wood,'Need 22 matching planks: 8 for first chest, 14 for child')
- local grid={1,2,3,5,6,7,9,10,11}
- local buffer={4,8,12,13,14,15,16}
- local function detail(i)return turtle.getItemDetail(i)end
- local function target(name,source)
-  for _,i in ipairs(buffer) do
-   local d=detail(i)
-   if i~=source and d and d.name==name and turtle.getItemSpace(i)>0
-    then return i end
-  end
-  for _,i in ipairs(buffer) do
-   if i~=source and not detail(i) then return i end
-  end
- end
- local needed={}
- for i=1,16 do
-  local d=detail(i)
-  if d then needed[d.name]=(needed[d.name] or 0)+d.count end
- end
- local stacks=0
- for _,n in pairs(needed) do stacks=stacks+math.ceil(n/64) end
- assert(stacks<=7,'Need at most seven separate resource stacks before initial chest')
- phase('craft_bootstrap_chest')
- for _,i in ipairs(grid) do
-  while detail(i) do
-   local d=detail(i)
-   local dest=assert(target(d.name,i),'No slot to stage '..d.name)
-   turtle.select(i)
-   assert(turtle.transferTo(dest),'Cannot stage '..d.name)
-  end
- end
- for _,i in ipairs({1,2,3,5,7,9,10,11}) do
-  local source
-  for _,j in ipairs(buffer) do
-   local d=detail(j)
-   if d and d.name==wood and d.count>0 then source=j;break end
-  end
-  assert(source,'Bootstrap planks missing')
-  turtle.select(source)
-  assert(turtle.transferTo(i,1),'Cannot arrange chest recipe')
- end
- turtle.select(6) -- empty center of the 3x3 recipe
- local valid,reason=turtle.craft(0)
- assert(valid,'Initial chest recipe invalid: '..tostring(reason))
- local ok,why=turtle.craft(1)
- assert(ok,'Initial chest craft failed: '..tostring(why))
- assert(count('minecraft:chest')>=1,'Initial chest output missing')
-end
+-- A chest ITEM is needed if supplies have already occupied other slots.
+-- CC:Tweaked turtle.craft requires ALL unrelated slots empty, including the
+-- 7 non-grid slots. The autonomous forestry bootstrap must craft its first
+-- chest before gathering a mixed inventory.
 local function ensureChest()
  if availableStorage() then return end
- bootstrapChest()
+ assert(select('minecraft:chest'),
+  'First birth kit requires one chest ITEM, not a placed chest')
  phase('place_chest')
  clearFor('bottom')
- assert(select('minecraft:chest'),'Initial chest item disappeared')
+ assert(select('minecraft:chest'),'Chest item unavailable after clearing ground')
  local ok,reason=turtle.placeDown()
- assert(ok,'Cannot place first chest: '..tostring(reason))
- assert(availableStorage(),'Chest not present after placement')
+ assert(ok,'Cannot place chest: '..tostring(reason))
+ assert(availableStorage(),'Chest not detected after placement')
 end
 local furnaceRecipe={
  [1]='minecraft:cobblestone',[2]='minecraft:cobblestone',
@@ -237,20 +184,8 @@ local function preflight()
  local function need(name,n)
   if count(name)<n then needs[#needs+1]=name..' '..count(name)..'/'..n end
  end
- local needPlanks=14
- if not availableStorage() and count('minecraft:chest')==0 then
-  needPlanks=22
- end
- if planks()<needPlanks then
-  needs[#needs+1]=tostring(needPlanks)..' same-type planks'
- end
- if not availableStorage() and count('minecraft:chest')==0 then
-  local stackSlots=0
-  for i=1,16 do if turtle.getItemDetail(i) then stackSlots=stackSlots+1 end end
-  if stackSlots>7 then
-   needs[#needs+1]='Too many inventory stacks before first chest'
-  end
- end
+ if not availableStorage() then need('minecraft:chest',1) end
+ if planks()<14 then needs[#needs+1]='14 same-type planks' end
  need('minecraft:diamond',3)
  need('minecraft:redstone',block('front')=='computercraft:disk_drive' and 1 or 3)
  if count('minecraft:iron_ingot')<7 then

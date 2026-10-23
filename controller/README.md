@@ -18,22 +18,26 @@ routines to program and start a child. An existing furnace is reclaimed when the
 disk drive must occupy the same front block. This is a small *starter workstation*,
 not a complete persistent colony infrastructure.
 
-The first chest is crafted from raw planks using the 16 inventory slots. There is
-**no pre-positioned chest, furnace, disk drive or supplied chest item**.
+The turtle **places** its first chest from a supplied chest ITEM. No chest,
+furnace or disk drive needs to be pre-positioned in the world. CC:Tweaked
+requires all unrelated inventory slots empty for turtle.craft, including slots
+outside the 3x3 grid, so crafting that initial chest from a mixed kit is not
+supported. During autonomous gathering the turtle will make its first chest
+*before* filling its inventory with other resources.
 
 ## Offline first-birth material budget
 
 One Mining + Crafting Turtle with both upgrades already equipped and starting
 movement fuel. In inventory:
 
-- **22 same-type planks**: 8 for the first chest, 14 for offspring;
+- **1 chest ITEM** for the initial storage bootstrap;
+- **14 same-type planks** for offspring;
 - **22 cobblestone**: 8 for the furnace, 14 to smelt for disk drive + computer;
 - **7 raw iron**;
 - **3 redstone**, **3 diamonds**, and **6 sand**;
 - **8 coal or charcoal**: 4 for furnace work, 4 for child start.
 
-Starting materials occupy seven item-stack types, leaving room for chest crafting
-without an existing storage chest. The turtle needs diggable terrain below, a
+The turtle needs diggable terrain below, a
 workstation cell ahead, and an empty child deployment cell behind it. The
 workflow handles these in a bounded way but does not yet search for better base
 locations.
@@ -73,8 +77,8 @@ registry, child connection, controller inventory updates, material accounting.
 
 `tests/worker_sim.lua`, `tests/workshop_sim.lua`,
 `tests/bootstrap_chest_sim.lua`, `tests/clone_worker_sim.lua`:
-Lua worker state, source-level worksite execution, realistic 16-slot chest
-bootstrap, offspring inheritance, repeated-job protection.
+Lua worker state, source-level worksite execution, first-chest item setup and
+rejection of invalid chestless mixed inventory, offspring inheritance, repeated-job protection.
 
 `tests/controller_installer_sim.lua`: full install, network failure before
 changes, copying failure rollback, interrupted-install recovery.
