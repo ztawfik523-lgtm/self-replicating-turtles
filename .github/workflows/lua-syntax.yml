@@ -7,6 +7,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - name: Install Lua 5.2 parser
         run: |
           sudo apt-get update
@@ -23,7 +25,7 @@ jobs:
       - name: Install Python test dependencies
         run: python -m pip install "pytest>=8" "pytest-asyncio>=0.24" "websockets>=14,<17"
       - name: Test persistent controller and WebSocket protocol
-        run: python -m pytest -q tests/test_controller.py
+        run: python -m pytest -q tests/test_controller.py tests/test_install_manifest.py
       - name: Simulate integrated workshop birth
         run: lua5.2 tests/workshop_sim.lua
       - name: Verify child controller inheritance and legacy compatibility
