@@ -185,10 +185,10 @@ def next_job(rec: TurtleRecord) -> tuple[str,dict[str,Any]] | None:
     ready = (planks >= 14 and coal >= 4 and
              all(items.get(k, 0) >= n for k,n in CHILD_BILL.items()))
     action, args = None, {}
-    if birth_ready:
-        action = "birth"
-    elif ready and view.get("front") == "computercraft:disk_drive":
+    if ready and view.get("front") == "computercraft:disk_drive":
         action = "produce"
+    elif birth_ready:
+        action = "birth"
     elif view.get("front") == "minecraft:furnace" and coal:
         if items.get("minecraft:iron_ingot", 0) < 7 and items.get("minecraft:raw_iron", 0):
             action, args = "process", {"kind": "iron"}
