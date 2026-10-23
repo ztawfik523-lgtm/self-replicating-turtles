@@ -2,7 +2,7 @@
 
 Minecraft **1.20.1 Forge**, CC: Tweaked, Advanced Peripherals, Turtlematic.
 
-## Current status — 0.3.2
+## Current status — 0.3.3
 
 - **Verified in Minecraft:** mining, manufactured offspring from supplied components, parent programming and booting an offspring.
 - **Implemented and mock-tested (not yet verified in Minecraft):** furnace processing of raw iron, gold, cobblestone, sand and logs using temporary inventory storage.
@@ -96,3 +96,17 @@ Other supported jobs: `gold`, `stone`, `glass`, `charcoal`. The program uses the
 On failure the station state is retained: `tg/main.lua status` displays the current phase. Do not start a new station in the same location. After checking and safely removing any materials in the furnace/chest, `tg/main.lua station-pack` tries to reclaim only the equipment it placed. If a processing operation is still marked interrupted, empty/reconcile inventories before using `tg/main.lua process-reset` and then `station-pack`. Do not break a filled furnace/chest: you may lose materials.
 
 **Limitations:** Still requires carrying a chest item and fuel. The next dependencies are making a chest from harvested planks and acquiring the cobblestone/fuel without player assistance. No need to build permanent stations or route back to them.
+
+## v0.3.3: Station bootstrapping and disk drive
+
+The portable station code can now bootstrap a chest directly from 8–64 same-type planks, with no other inventory items beyond a crafting table item to equip. This early-life constraint avoids losing gathered resources before storage exists; afterwards the turtle can carry the chest as normal. (This does **not** yet include an automated tree finder.)
+
+After `tg/main.lua station iron` processes a batch and packs its empty stations, the turtle can construct its disk drive on site from either a carried drive or **7 stone + 2 redstone**:
+
+```sh
+tg/main.lua station-drive
+```
+
+The drive command uses the existing chest for recipe staging and, when necessary, dismantles only an **empty furnace** in front. The chest may be below already or supplied as an item. A disk drive remains installed until `tg/main.lua station-pack` is invoked after reproduction, or until the next phase of autonomous station management is implemented.
+
+This is unverified in Minecraft and not yet a self-sufficient lifecycle; it removes additional manually placed infrastructure dependencies.

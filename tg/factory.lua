@@ -152,6 +152,7 @@ local function craftStep(label,pattern,expected)
   log.event('crafted',label)
 end
 M.craftStep=craftStep -- Shared fixed-recipe helper for portable station.
+M.equipCrafting=ensureCrafting
 function M.make()
   state.assertSafe()
   assert(not state.data.manufacture,'Interrupted manufacturing present; inspect before retry')

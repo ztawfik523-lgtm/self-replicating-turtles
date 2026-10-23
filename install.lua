@@ -3,7 +3,7 @@
 local REPO = 'ztawfik523-lgtm/self-replicating-turtles'
 local API = 'https://api.github.com/repos/' .. REPO .. '/commits/main'
 local STAGE = '/tg-download'
-local EXPECTED = '0.3.2'
+local EXPECTED = '0.3.3'
 local FILES = {
   'tg/config.lua', 'tg/state.lua', 'tg/log.lua', 'tg/fuel.lua',
   'tg/nav.lua', 'tg/survey.lua', 'tg/clone.lua', 'tg/replicate.lua',
