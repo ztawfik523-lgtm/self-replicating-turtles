@@ -160,42 +160,74 @@ local function cleanBeforeCraft(wood)
   end
  end
 end
+-- Recoverable chestless crafting: retries observe what was physically
+-- produced, instead of harvesting extra trees or discarding finished planks.
 local function firstChest()
  if block('down')=='minecraft:chest' then return end
- local wood,logs=matching('log')
- assert(wood and logs>=4,'Need at least four same-type logs before first chest')
  assert(type(turtle.craft)=='function','First turtle needs crafting upgrade equipped')
  local original=turtle.getSelectedSlot()
- cleanBeforeCraft(wood)
- for i=2,16 do
-  if detail(i) then
-   turtle.select(i)
-   assert(turtle.transferTo(1),'Cannot merge bootstrap logs')
+ if count('minecraft:chest')==0 then
+  local planks,plankCount=matching('planks')
+  if not planks or plankCount<8 then
+   local wood,logs=matching('log')
+   assert(wood and logs>=4,'Need at least four same-type logs before first chest')
+   assert(logs<=16,'Oversized log stack for first-chest craft')
+   cleanBeforeCraft(wood)
+   for i=2,16 do
+    if detail(i) then
+     turtle.select(i)
+     assert(turtle.transferTo(1) and not detail(i),
+      'Cannot consolidate bootstrap logs')
+    end
+   end
+   assert(detail(1) and detail(1).name==wood,'Log staging failed')
+   mark('convert_first_logs')
+   turtle.select(16)
+   -- turtle.craft(limit) counts RECIPE STEPS, not output items:
+   -- each log step yields four planks.
+   local ok,why=turtle.craft(logs)
+   assert(ok,'Cannot craft first planks: '..tostring(why))
+   planks=wood:gsub('_log$','_planks')
+   assert(count(planks)>=8,'Log conversion produced too few planks')
+  else
+   -- The prior run may have completed log conversion or been interrupted
+   -- midway through arranging the 3x3 chest pattern.
+   mark('resume_first_planks')
   end
+  cleanBeforeCraft(planks)
+  -- Reconstruct the recipe from physical inventory every time. This handles
+  -- all partial item transfers between slots without replaying log crafting.
+  for i=2,16 do
+   if detail(i) then
+    turtle.select(i)
+    assert(turtle.transferTo(1) and not detail(i),
+     'Cannot consolidate bootstrap planks')
+   end
+  end
+  assert(detail(1) and detail(1).name==planks and
+   detail(1).count>=8,'At least eight matching planks needed')
+  mark('craft_first_chest')
+  for _,slot in ipairs({2,3,5,7,9,10,11}) do
+   turtle.select(1)
+   assert(turtle.transferTo(slot,1),'Cannot prepare chest recipe')
+  end
+  turtle.select(16)
+  local valid,why=turtle.craft(0)
+  assert(valid,'First chest pattern invalid: '..tostring(why))
+  local ok,err=turtle.craft(1)
+  assert(ok,'First chest crafting failed: '..tostring(err))
+  assert(count('minecraft:chest')>=1,'Crafted chest output missing')
+ else
+  -- Crash after successful chest craft: do not spend any more wood.
+  mark('resume_placed_chest_item')
  end
- assert(detail(1) and detail(1).name==wood,'Log staging failed')
- assert(logs<=16,'Oversized log stack for first-chest craft')
- turtle.select(16)
- local ok,why=turtle.craft(logs)
- assert(ok,'Cannot craft first planks: '..tostring(why))
- local planks=wood:gsub('_log$','_planks')
- assert(detail(16) and detail(16).name==planks,'Log conversion produced unexpected item')
- turtle.select(16)
- assert(turtle.transferTo(1),'Cannot move planks to crafting grid')
- for _,slot in ipairs({2,3,5,7,9,10,11}) do
-  turtle.select(1)
-  assert(turtle.transferTo(slot,1),'Cannot prepare chest recipe')
- end
- turtle.select(16)
- ok,why=turtle.craft(1)
- assert(ok,'First chest crafting failed: '..tostring(why))
- assert(count('minecraft:chest')>=1,'Crafted chest output missing')
  local down=block('down')
  assert(not down or ROCK[down] or SAFE[down],
   'Unsafe first chest placement over '..tostring(down))
  if down then assert(turtle.digDown(),'Cannot dig space for first chest') end
  assert(selectItem('minecraft:chest'),'First chest disappeared')
- ok,why=turtle.placeDown()
+ mark('place_first_chest')
+ local ok,why=turtle.placeDown()
  assert(ok,'Cannot place first chest: '..tostring(why))
  assert(block('down')=='minecraft:chest','First chest not detected')
  turtle.select(original)
@@ -255,6 +287,10 @@ local function deposit()
   if d and not retain[d.name] then
    turtle.select(i)
    assert(turtle.dropDown(),'Storage chest full; cannot deposit '..d.name)
+   -- dropDown can return success for a PARTIAL transfer if the chest filled.
+   -- Never label a stockpile complete while materials remain in the turtle.
+   assert(turtle.getItemCount(i)==0,
+    'Storage chest only accepted part of '..d.name..'; retry after making room')
   end
  end
  turtle.select(old)
@@ -280,9 +316,14 @@ function M.run(jobId)
  end
  atHome()
  if block('down')~='minecraft:chest' then
-  mark('gather_first_wood')
-  local _,n=scan('wood',4)
-  assert(n>=4,'No accessible tree in local search; choose a wooded start area')
+  -- An interrupted conversion may already have yielded planks or a chest.
+  -- Avoid a new forest trip unless there is insufficient material to craft.
+  local _,plankCount=matching('planks')
+  if count('minecraft:chest')==0 and plankCount<8 then
+   mark('gather_first_wood')
+   local _,n=scan('wood',4)
+   assert(n>=4,'No accessible tree in local search; choose a wooded start area')
+  end
   mark('craft_and_place_first_chest')
   firstChest()
  end
@@ -300,13 +341,23 @@ function M.run(jobId)
   mark('craft_and_place_furnace')
   furnace()
  end
+ -- A power cut during smelting leaves inputs/outputs in the actual furnace.
+ -- Reconcile that physical batch FIRST; do not harvest another tree or start
+ -- another batch just because the turtle's inventory lacks charcoal.
+ if state.data.processing then
+  mark('resume_first_charcoal')
+  local ok,reason=process.resume()
+  assert(ok,'Cannot resume interrupted charcoal: '..tostring(reason))
+ end
  if count('minecraft:charcoal')==0 then
-  -- A plank lights the first smelt. Harvest after constructing the chest
-  -- but BEFORE occupying the front face with furnace; if a furnace already
-  -- occupies front, other clear exploration rays may still work.
-  mark('gather_charcoal_logs')
-  local _,n=scan('wood',4)
-  assert(n>=1,'Need one more tree for charcoal; no accessible logs')
+  -- A plank lights the initial batch. Reuse harvested logs after recovery,
+  -- gathering another tree only when the turtle genuinely lacks fuel inputs.
+  local _,n=matching('log')
+  if n<1 then
+   mark('gather_charcoal_logs')
+   _,n=scan('wood',4)
+  end
+  assert(n>=1,'Need another tree for charcoal; no accessible logs')
   mark('smelt_first_charcoal')
   process.run('charcoal')
  end
