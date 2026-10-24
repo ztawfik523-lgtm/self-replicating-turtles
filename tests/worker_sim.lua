@@ -26,6 +26,7 @@ local w=dofile('tg/worker.lua')
 local one=w.handle({id='7:1',action='observe'})
 assert(one.ok and one.data.fuel==100)
 assert(one.data.storage['minecraft:sand']==7)
+assert(one.data.storage_observed==true)
 assert(one.data.storage['minecraft:cobblestone']==8)
 assert(files['/tg/worker-job.dat'])
 assert(w.handle({id='7:1',action='observe'}).ok)
@@ -66,3 +67,14 @@ assert(not w.handle(stalled).ok)
 assert(w.handle(stalled).ok)
 assert(attempts==2,'Previously failed birth must resume, not be deduplicated')
 print('PASS: previously failed birth retries after prerequisite correction')
+
+-- A missing peripheral is not the same as an observed empty chest.
+peripheral.wrap=function()return nil end
+local unavailable=w.handle({id='7:5',action='observe'})
+assert(unavailable.ok and unavailable.data.storage==nil)
+assert(unavailable.data.storage_observed==false)
+peripheral.wrap=function()return {list=function()return {} end} end
+local empty=w.handle({id='7:6',action='observe'})
+assert(empty.ok and empty.data.storage_observed==true)
+assert(type(empty.data.storage)=='table' and next(empty.data.storage)==nil)
+print('PASS: empty and inaccessible storage are not conflated')
