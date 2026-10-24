@@ -6,7 +6,7 @@ local slots={}
 local sel=1
 local d={pose={x=0,y=0,z=0,dir=0},moves=0,children=0}
 local physical={x=0,y=0,z=0,dir=0}
-local world={chest=false,furnace=false}
+local world={chest=false,furnace=false,worksiteSapling=false}
 local stored={}
 local trees={['0:1']=4,['4:0']=4}
 local cut={}
@@ -55,6 +55,12 @@ local function blockFront()
  local x,z=front()
  if world.furnace and physical.x==0 and physical.z==0 and physical.dir==0 then
   return 'minecraft:furnace'
+ end
+ if world.worksiteSapling and physical.x==0 and physical.z==0 and physical.dir==0 then
+  return 'minecraft:oak_sapling'
+ end
+ if physical.y==0 and x==1 and z==0 and sand['1:0'] then
+  return 'minecraft:sand'
  end
  if physical.y>=0 and trees[key(x,z)] and physical.y<trees[key(x,z)]
     and not cut[key(x,z)..':'..physical.y] then
@@ -116,7 +122,12 @@ turtle={
    -- Mark harvested log at the current height, while keeping upper logs.
    cut[key(x,z)..':'..physical.y]=true
    add('minecraft:oak_log',1)
+   if x==0 and z==1 and physical.y==0 then add('minecraft:oak_sapling',1) end
    return true
+  end
+  if physical.y==0 and x==1 and z==0 and sand['1:0'] then
+   sand['1:0']=nil
+   add('minecraft:sand',1)
   end
   return true
  end,
@@ -185,6 +196,11 @@ turtle={
   world.chest=true;spend('minecraft:chest',1);return true
  end,
  place=function()
+  if item(sel) and item(sel).name=='minecraft:oak_sapling' then
+   world.worksiteSapling=true
+   spend('minecraft:oak_sapling',1)
+   return true
+  end
   if item(sel) and item(sel).name=='minecraft:furnace' then
    world.furnace=true;spend('minecraft:furnace',1);return true
   end
@@ -267,11 +283,34 @@ assert(not ok and tostring(reason):find('power loss'))
 assert(count('minecraft:chest')>=1)
 assert(not world.chest)
 turtle.placeDown=basePlace
+-- Resume a single partially completed furnace batch rather than mining the
+-- eight construction cobblestone again or harvesting additional logs.
+local baseSmelt=package.loaded.process.run
+local stopSmelt=true
+package.loaded.process.run=function(kind)
+ if stopSmelt then
+  stopSmelt=false
+  d.processing={kind=kind,stage='smelting'}
+  error('simulated power loss in charcoal furnace')
+ end
+ return baseSmelt(kind)
+end
+package.loaded.process.resume=function()
+ assert(d.processing and d.processing.kind=='charcoal')
+ d.processing=nil
+ baseSmelt('charcoal')
+ return true
+end
+ok,reason=pcall(bootstrap.run,'10:initial')
+assert(not ok and tostring(reason):find('power loss'))
+assert(d.processing and world.furnace)
 assert(bootstrap.run('10:initial'))
+assert(d.processing==nil)
 assert(d.bootstrap.jobId=='10:initial')
 print('PASS: interrupted planks and chest item resume under original job')
 assert(d.bootstrap.complete==true)
 assert(world.chest and world.furnace)
+assert(not world.worksiteSapling,'Furnace cell must not be replanted')
 assert(count('minecraft:charcoal')>=1)
 assert(physical.x==0 and physical.y==0 and physical.z==0 and physical.dir==0)
 assert(d.pose.x==physical.x and d.pose.y==physical.y and

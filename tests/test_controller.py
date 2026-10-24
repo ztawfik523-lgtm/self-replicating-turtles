@@ -245,3 +245,18 @@ def test_fuel_cycle_never_runs_without_verified_base_or_during_smelt(tmp_path):
     view["storage_observed"]=True
     view["front"]="computercraft:disk_drive"
     assert next_job(rec) is None
+
+def test_inaccessible_chest_defers_legacy_smelt_and_logs_warning(tmp_path, caplog):
+    db=Colony(tmp_path/"db.json");rec=db.register(hello())
+    rec.last_snapshot={"front":"minecraft:furnace","bottom":"minecraft:chest",
+        "storage_observed":False,
+        "inventory":[{"name":"minecraft:raw_iron","count":8},
+                     {"name":"minecraft:coal","count":2}]}
+    assert next_job(rec) is None
+    host=Host(tmp_path/"host.json")
+    with caplog.at_level("WARNING",logger="genesis"):
+        host.report_if_waiting(rec)
+    assert "inventory peripheral is unavailable" in caplog.text
+    rec.last_snapshot["storage_observed"]=True
+    rec.last_snapshot["storage"]={}
+    assert next_job(rec)[0]=="process"
