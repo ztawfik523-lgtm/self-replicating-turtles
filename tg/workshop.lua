@@ -239,8 +239,20 @@ function M.run(jobId)
       childrenBefore=state.data.children or 0}
   state.save()
  end
+ -- If power was lost (or an early crafting failure occurred) after the
+ -- furnace ingredients were placed in the 3x3 grid, unrelated supplies may
+ -- still be in the bottom chest. Restore those automatically before retrying.
+ -- This exact recovery is limited to the unconsumed FIRST furnace recipe.
  -- Each operation uses observations; do not rely on saved phase alone.
  ensureChest()
+ if state.data.birth and state.data.birth.stage=='craft_furnace'
+    and block('front')~='minecraft:furnace' then
+  print('Recovering ingredients after interrupted furnace craft')
+  factory.collect()
+ end
+ -- Activate crafting before arranging a recipe. A crafting table ITEM may
+ -- have been inserted after the original failed attempt.
+ factory.equipCrafting()
  local needIron=count('minecraft:iron_ingot')<7
  local needStone=count('minecraft:stone')<14 and
    block('front')~='computercraft:disk_drive'
