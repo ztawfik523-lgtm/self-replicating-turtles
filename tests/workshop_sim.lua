@@ -1,10 +1,11 @@
 -- Simulated first-birth worksite and interruption tests, no Minecraft.
 package.path='tg/?.lua;'..package.path
-local items,world,born,smelts,makes
+local items,world,born,smelts,makes,collectCount,craftingEquips
 local function fixture(initial,front,below)
  items={}
  for k,n in pairs(initial) do items[k]=n end
  world={front=front,bottom=below};born=0;smelts={};makes=0
+ collectCount,craftingEquips=0,0
  local function count(name)return items[name] or 0 end
  local function plus(name,n)items[name]=count(name)+n end
  local function minus(name,n)assert(count(name)>=n,name..' insufficient');items[name]=count(name)-n end
@@ -49,10 +50,12 @@ local function fixture(initial,front,below)
  package.loaded.state=st
  package.loaded.factory={
   equipCrafting=function()
+   craftingEquips=craftingEquips+1
    return true
   end,
   collect=function()
-   -- The full factory provides this; this test has no staged chest items.
+   -- In the actual runtime this retrieves the ingredients staged below.
+   collectCount=collectCount+1
    return true
   end,
   craftStep=function(label,pattern,output)
@@ -131,3 +134,11 @@ local ok,err=pcall(w.run)
 assert(not ok and tostring(err):find('chest'))
 assert(state.data.birth==nil)
 print('PASS: invalid starter kit leaves state untouched')
+
+w,state,count=fixture(supplies,nil,'minecraft:chest')
+items['minecraft:chest']=0
+state.data.birth={stage='craft_furnace',jobId='7:13',childrenBefore=0}
+assert(w.run('7:13'))
+assert(collectCount==1,'Must collect chest supplies before recreating recipe')
+assert(craftingEquips>=1,'Must activate crafting before first recipe')
+print('PASS: interrupted furnace grid recovers staging and crafting first')
