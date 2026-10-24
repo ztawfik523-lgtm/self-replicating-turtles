@@ -1,4 +1,5 @@
 import json
+import asyncio
 import pytest
 from websockets.asyncio.client import connect
 from websockets.asyncio.server import serve
@@ -167,3 +168,21 @@ def test_full_material_kit_is_not_reported_as_idle(tmp_path, caplog):
         host.report_if_waiting(rec)
     assert "standard first-birth kit missing" not in caplog.text
     assert next_job(rec)[0]=="birth"
+
+@pytest.mark.asyncio
+async def test_abrupt_turtle_reboot_disconnects_cleanly(tmp_path, caplog):
+    """CC:Tweaked doesn't necessarily send a WebSocket close frame on reboot."""
+    host = Host(tmp_path / "db.json")
+    async with serve(host.handle, "127.0.0.1", 0) as server:
+        port = server.sockets[0].getsockname()[1]
+        with caplog.at_level("INFO", logger="genesis"):
+            ws = await connect(f"ws://127.0.0.1:{port}")
+            await ws.send(json.dumps(hello()))
+            assert json.loads(await ws.recv())["type"] == "welcome"
+            assert 7 in host.connected
+            ws.transport.abort()  # no close frame
+            async def wait_for_removal():
+                while 7 in host.connected:
+                    await asyncio.sleep(0.01)
+            await asyncio.wait_for(wait_for_removal(), timeout=1)
+    assert "Turtle 7 disconnected" in caplog.text
