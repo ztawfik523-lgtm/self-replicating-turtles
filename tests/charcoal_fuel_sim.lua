@@ -31,10 +31,12 @@ end
 local function smelt()
  if furnaceSlots[1] and furnaceSlots[2] then
   local logs=furnaceSlots[1].count
-  local planks=furnaceSlots[2].count
-  local amount=math.min(logs,planks)  -- deliberately conservative
+  local fuel=furnaceSlots[2]
+  local per=(fuel.name=='minecraft:coal' or fuel.name=='minecraft:charcoal')
+       and 8 or 1
+  local amount=math.min(logs,fuel.count*per)
   take(furnaceSlots,1,amount)
-  take(furnaceSlots,2,amount)
+  take(furnaceSlots,2,math.ceil(amount/per))
   insert(furnaceSlots,3,'minecraft:charcoal',amount)
  end
 end
@@ -109,3 +111,16 @@ assert(not next(furnaceSlots))
 assert(st.data.processing==nil)
 os.epoch=epoch
 print('PASS: actual furnace processor turns logs+planks into charcoal without coal')
+
+-- Existing coal must take precedence over wooden fuel, preserving planks.
+turtleSlots={
+ [1]={name='minecraft:oak_log',count=3},
+ [2]={name='minecraft:oak_planks',count=3},
+ [3]={name='minecraft:coal',count=1}}
+chestSlots={};furnaceSlots={};selected=1
+assert(process.run('charcoal')==3)
+assert(qty(turtleSlots,'minecraft:charcoal')==3)
+assert(qty(turtleSlots,'minecraft:oak_planks')==3)
+assert(qty(turtleSlots,'minecraft:coal')==0)
+assert(not next(chestSlots) and not next(furnaceSlots))
+print('PASS: charcoal keeps planks when coal is already available')
