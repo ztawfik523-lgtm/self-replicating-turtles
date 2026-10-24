@@ -51,7 +51,16 @@ local function snapshot()
  local front,fb=turtle.inspect()
  local below,bb=turtle.inspectDown()
  local d=state.data
- return {inventory=inv,fuel=turtle.getFuelLevel(),
+ local storage={}
+ local chest=peripheral.wrap('bottom')
+ if chest and type(chest.list)=='function' then
+  for _,item in pairs(chest.list()) do
+   if type(item)=='table' and type(item.name)=='string' then
+    storage[item.name]=(storage[item.name] or 0)+(item.count or 0)
+   end
+  end
+ end
+ return {inventory=inv,storage=storage,fuel=turtle.getFuelLevel(),
   pose=d.pose,generation=d.generation,
   front=front and fb.name or nil,bottom=below and bb.name or nil,
   processing=d.processing~=nil,manufacturing=d.manufacture~=nil,
