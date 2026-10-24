@@ -101,7 +101,12 @@ local function mineLogColumn()
  print('Base: harvested logs in inventory: '..tostring(count(first)))
  -- If a sapling was collected during harvesting, replace the trunk.
  local sapling=first:gsub('_log$','_sapling')
- if selectItem(sapling) and not turtle.detect() then turtle.place() end
+ -- Keep replanted saplings away from the permanent furnace cell at home.
+ local p,h=state.data.pose,state.data.bootstrap.home
+ local worksiteFace=(p.x==h.x and p.y==h.y and p.z==h.z and p.dir==h.dir)
+ if not worksiteFace and selectItem(sapling) and not turtle.detect() then
+  turtle.place()
+ end
  turtle.select(old)
  return true
 end
@@ -121,6 +126,13 @@ local function scan(resource,needed)
    if resource=='wood' and current
        and current:match('^minecraft:[%a_]+_log$') then
     mineLogColumn()
+   elseif resource=='sand' and current=='minecraft:sand' then
+    -- Collect raised sandbanks as well as sand underneath survey paths.
+    -- Falling-sand chains are bounded and unrelated blocks stay protected.
+    for _=1,6 do
+     if have()>=needed or block('front')~='minecraft:sand' then break end
+     if not turtle.dig() then break end
+    end
    end
    if not safeFront() then break end
    local ok=nav.forward()
@@ -333,7 +345,11 @@ function M.run(jobId)
   assert(count('minecraft:sand')>=6,
    'No six sand near home; relocate base near a river or sandy terrain')
  end
- if count('minecraft:cobblestone')<8 then
+ -- A carried or placed furnace has already consumed construction stone.
+ -- Do not remine the same eight blocks during an interrupted charcoal run.
+ if block('front')~='minecraft:furnace' and
+     count('minecraft:furnace')==0 and
+     count('minecraft:cobblestone')<8 then
   mark('gather_cobblestone')
   mineCobble()
  end

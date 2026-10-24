@@ -12,7 +12,8 @@ textutils={serialize=function(v)_G.saved=v;return 'state' end,
  unserialize=function()return _G.saved end}
 turtle={getItemDetail=function()return nil end,
  getFuelLevel=function()return 100 end,
- inspect=function()return false end,inspectDown=function()return false end}
+ inspect=function()return false end,
+ inspectDown=function()return true,{name='minecraft:chest'} end}
 peripheral={wrap=function(side)
  if side=='bottom' then
   return {list=function()return {
@@ -78,3 +79,18 @@ local empty=w.handle({id='7:6',action='observe'})
 assert(empty.ok and empty.data.storage_observed==true)
 assert(type(empty.data.storage)=='table' and next(empty.data.storage)==nil)
 print('PASS: empty and inaccessible storage are not conflated')
+
+-- A broken inventory method must not crash the worker or erase its stock.
+peripheral.wrap=function()return {list=function() error('peripheral detached') end} end
+local detached=w.handle({id='7:7',action='observe'})
+assert(detached.ok and detached.data.storage==nil)
+assert(detached.data.storage_observed==false)
+-- Phantom peripherals are not accepted when no chest exists below.
+turtle.inspectDown=function()return false end
+peripheral.wrap=function()return {list=function()return {
+ [1]={name='minecraft:diamond',count=99}
+} end} end
+local phantom=w.handle({id='7:8',action='observe'})
+assert(phantom.ok and phantom.data.storage==nil)
+assert(phantom.data.storage_observed==false)
+print('PASS: disconnected and phantom storage cannot fabricate stock')
