@@ -143,3 +143,18 @@ wood/stone/sand-to-furnace-and-charcoal run.
 
 The main M1 controller and its already-installed copies remain unaffected;
 the new runtime is not automatically delivered to them.
+
+## Repeatable fuel production
+
+After M2 reports a completed base, the controller compares charcoal/coal in
+the turtle **and observed storage**. If fewer than three pieces remain,
+it assigns one bounded `fuel_cycle` to the same turtle. The Lua routine
+takes items from storage, harvests reachable logs, uses wood planks as a
+fuel source when coal and charcoal are exhausted, smelts more charcoal,
+and returns other inventory to its original chest. A persistent job ID
+avoids running an already-finished fuel batch twice.
+
+Offline tests now cover draining the original output, a second harvest,
+storage retention, same-job replay protection, and controller scheduling.
+No indefinite sapling supply has been proved; the process requires
+reachable natural trees until sapling farming is implemented.

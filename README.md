@@ -8,7 +8,8 @@ but has **not** been verified in-game. Existing turtles 10 and 11 are
 unchanged and won't be sent exploring: base bootstrap requires a fresh turtle
 installed with an explicit `bootstrap` opt-in. The stage combines wood
 harvesting, a chest crafted from logs, sand/stone collection, a furnace,
-initial plank-fired charcoal, storage deposits, and return-to-home checks.
+initial plank-fired charcoal, storage deposits, return-to-home checks,
+and recurring charcoal replenishment when the existing base runs low.
 
 See [Milestone 2 development plan](PLAN.md) and
 [controller documentation](controller/README.md) for restrictions and tests.

@@ -167,6 +167,16 @@ modules, not a new Minecraft mod:
   `bootstrap` argument is explicitly provided. Copies source files from an
   immutable tested commit and retains recoverable backups.
 
+**Repeatable resource production:** A completed, opted-in M2 base
+automatically receives a `fuel_cycle` job when its **observed** combined
+turtle-and-chest coal/charcoal stock drops below three. It retrieves the
+existing chest inventory, harvests more logs from accessible trees, crafts
+planks for first fuel if needed, uses the same furnace to make charcoal,
+deposits surplus items back in storage, and records the completed job ID.
+Unavailable chest storage is not misreported as empty; existing non-opted-in
+M1 turtles are never assigned this job. This is a bounded fuel replenishment
+loop while accessible trees remain, **not** a demonstrated perpetual farm.
+
 **Automated acceptance:** `tests/bootstrap_m2_sim.lua` models a landscape
 with two trees, sand banks and a stone shaft. It verifies actual navigation
 pose matches physical pose, complete base construction and initial charcoal.
@@ -187,3 +197,8 @@ It should not involve repeatedly testing each craft or movement operation.
 
 **After M2:** gather the iron/redstone/diamond ingredients for M3 and
 demonstrate offspring and grandchild created from world-gathered resources.
+
+**Release status:** The opt-in M2 source and local base-to-charcoal and
+repeat-fuel simulations are complete. This milestone is still **pending one
+Minecraft end-to-end acceptance run** in suitable terrain. No live M2 test
+has been attempted, and no original turtle installation was changed.
