@@ -1,8 +1,12 @@
 # Turtle Genesis controller track — 0.4.0-dev
 
-**Status:** Experimental Python/Lua integrated first-birth build. Offline test suite
-passes; full Minecraft implementation **has not been verified in-game**. Do not
-confuse this with the stable v0.3.5 `install.lua` path.
+**Status (2026-10-24): First real Minecraft end-to-end birth succeeded.**
+The parent turtle, computer **10**, built the starter workshop from supplied
+items, processed inputs, produced/programmed/fueled/booted child computer **11**.
+Both parent and child connected to the Python controller. The run initially
+encountered a missing crafting upgrade; after a targeted repair it resumed the
+same birth and finished. This is **Milestone 1**, not autonomous material gathering.
+The stable pinned v0.3.5 root `install.lua` remains separate.
 
 ## Architecture
 
@@ -42,8 +46,9 @@ workstation cell ahead, and an empty child deployment cell behind it. The
 workflow handles these in a bounded way but does not yet search for better base
 locations.
 
-This budget and physical arrangement are **simulated**, not confirmed end-to-end
-in a real Minecraft world.
+This starter-material workflow has **now been verified end-to-end in Minecraft**
+with a crafting-upgrade repair during the run. Recoverability from every
+possible interruption has not been proven.
 
 ## Running the prototype once a Minecraft milestone test is warranted
 
@@ -95,3 +100,20 @@ CI compiles all Lua source files and runs existing recovery regression tests.
 - Controller URLs must be reachable from the Minecraft JVM. Real-game
   peripheral, crafting, disk-drive and placement behavior still needs the
   **single, worthwhile** Minecraft milestone test.
+
+## Milestone 1 acceptance evidence — 2026-10-24
+
+- Parent ID 10: screen reported `Replication: child_booted`,
+  `Replication (lab test) complete`, `Birth: complete`, and
+  `Birth sequence complete; worksite remains installed`.
+- Child initialized as computer ID 11 and subsequently connected to the controller.
+- Python controller: `Turtle 11 connected, recovery=idle` followed by
+  `Turtle 10 connected, recovery=idle` after a reboot/reconnect.
+- A `websockets.exceptions.ConnectionClosedError` traceback occurred while the
+  turtle rebooted, but the Python service continued accepting connections.
+  The controller now treats these disconnects as expected informational events.
+- The test used stocked materials rather than autonomous wood/ore acquisition.
+
+**Next human-visible acceptance test:** one startup that harvests wood, makes its
+first chest before inventory fills, gathers stone and sand and establishes a
+fuel-producing starter base. No intermediate player tests per operation.

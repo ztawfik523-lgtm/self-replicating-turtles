@@ -98,10 +98,11 @@ Implemented:
   `install.lua` pinned to v0.3.5. Simulated download/install/rollback/restart
   recovery passes automated checks.
 
-**What prevents claiming Milestone 1 is verified:** the real Minecraft placement,
-furnace, child initialization, disk filesystem and launch sequence still needs
-one integrated game run; some rare interruptions mid-crafting/child placement
-are not fully recovered without further physical reconciliation.
+**Milestone 1 in-game acceptance passed (2026-10-24):** parent **ID 10**
+completed the starter worksite and one child, computer **ID 11**, booted and
+joined the Python controller. The run used supplied materials and required one
+crafting upgrade recovery after an initial missed prerequisite. Some rare
+interruptions mid-crafting/child placement still lack full recovery guarantees.
 
 **Future work after that acceptance gate:** wood/charcoal base bootstrap from
 terrain, mining and resource acquisition using adapted existing code; then
@@ -118,3 +119,16 @@ other materials present was invalid. The Milestone 1 starter kit includes one
 furnace/drive is required. Milestone 2 makes a chest early from gathered wood
 before collecting mixed resources. Regression tests now reject the impossible
 chestless mixed-inventory case.
+
+## Current milestone status (2026-10-24)
+
+- **M1 ACCEPTED IN-GAME:** one parent turtle built the small first workshop and
+  produced/programmed/booted its first child from supplied inventory items.
+  Turtle **10** = parent; turtle **11** = offspring; both reconnected to Python.
+- **M2 NEXT:** wood/stone/sand gathering, first chest crafted *before* the turtle
+  fills with mixed item types, furnace and charcoal self-supply, home return and
+  recovery. Do not ask the player to test individual algorithms.
+- **M3–M4 NOT IMPLEMENTED:** independent ore acquisition, recursive children,
+  scaling/chunk-loading. The M1 result does not demonstrate either.
+- **Controller maintenance:** handle closed WebSockets during turtle reboot
+  quietly, rather than emitting an unnecessary traceback.
