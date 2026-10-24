@@ -133,9 +133,18 @@ local function scan(resource,needed)
   end
   for _=1,dist do assert(nav.back(),'Return path to base is blocked') end
   assert(nav.right(),'Cannot change survey heading')
-  atHome()
+  local p,h=state.data.pose,state.data.bootstrap.home
+  assert(p.x==h.x and p.y==h.y and p.z==h.z,
+   'Survey failed to return to the base location')
   if have()>=needed then break end
  end
+ -- Restore the base heading even if the search found enough material on
+ -- its first or second ray. Returning only to (x,y,z) is insufficient.
+ local original=state.data.bootstrap.home.dir
+ while state.data.pose.dir~=original do
+  assert(nav.right(),'Cannot restore base facing')
+ end
+ atHome()
  return have()-before,have()
 end
 local function cleanBeforeCraft(wood)
