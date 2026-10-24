@@ -51,16 +51,28 @@ local function snapshot()
  local front,fb=turtle.inspect()
  local below,bb=turtle.inspectDown()
  local d=state.data
- local storage={}
- local chest=peripheral.wrap('bottom')
- if chest and type(chest.list)=='function' then
-  for _,item in pairs(chest.list()) do
-   if type(item)=='table' and type(item.name)=='string' then
-    storage[item.name]=(storage[item.name] or 0)+(item.count or 0)
+ -- "No storage observed" is not the same as an observed empty chest.
+ -- Avoid silently dropping colony inventory during peripheral reconnects.
+ local storage,storageObserved=nil,false
+ if below and bb and (bb.name=='minecraft:chest' or bb.name=='minecraft:barrel')
+   and peripheral and type(peripheral.wrap)=='function' then
+  local wrapped,chest=pcall(peripheral.wrap,'bottom')
+  if wrapped and chest and type(chest.list)=='function' then
+   local listed,items=pcall(chest.list)
+   if listed and type(items)=='table' then
+    storage={}
+    for _,item in pairs(items) do
+     if type(item)=='table' and type(item.name)=='string'
+       and type(item.count)=='number' and item.count>0 then
+      storage[item.name]=(storage[item.name] or 0)+item.count
+     end
+    end
+    storageObserved=true
    end
   end
  end
- return {inventory=inv,storage=storage,fuel=turtle.getFuelLevel(),
+ return {inventory=inv,storage=storage,storage_observed=storageObserved,
+  fuel=turtle.getFuelLevel(),
   pose=d.pose,generation=d.generation,
   front=front and fb.name or nil,bottom=below and bb.name or nil,
   processing=d.processing~=nil,manufacturing=d.manufacture~=nil,
