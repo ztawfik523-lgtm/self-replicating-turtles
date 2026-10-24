@@ -217,3 +217,25 @@ def test_m2_blocked_job_only_retries_after_observed_change(tmp_path):
     assert next_job(rec) is None
     rec.last_snapshot["fuel"]=500
     assert next_job(rec)[0]=="bootstrap"
+
+def test_unavailable_worksite_inventory_defers_jobs(tmp_path, caplog):
+    db = Colony(tmp_path / "db.json")
+    rec = db.register(hello())
+    # Enough materials for a smelting job, but an attached chest that cannot
+    # be inspected must not be treated as empty or ready for staging.
+    rec.last_snapshot = {
+        "front": "minecraft:furnace", "bottom": "minecraft:chest",
+        "storage_observed": False, "inventory": [
+            {"name": "minecraft:raw_iron", "count": 8},
+            {"name": "minecraft:coal", "count": 2}],
+    }
+    assert next_job(rec) is None
+    host = Host(tmp_path / "host.json")
+    with caplog.at_level("WARNING", logger="genesis"):
+        host.report_if_waiting(rec)
+    assert "inventory peripheral is unavailable" in caplog.text
+    assert "missing" not in caplog.text
+
+    rec.last_snapshot["storage_observed"] = True
+    rec.last_snapshot["storage"] = {}
+    assert next_job(rec)[0] == "process"
