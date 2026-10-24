@@ -81,6 +81,7 @@ end
 local function mineLogColumn()
  local first=block('front')
  if not first or not first:match('^minecraft:[%a_]+_log$') then return false end
+ print('Base: harvesting '..first)
  assertFuel(TREE_HEIGHT*2+SEARCH*2+2)
  local old=turtle.getSelectedSlot()
  local ok,why=turtle.dig()
@@ -97,6 +98,7 @@ local function mineLogColumn()
  end
  for _=1,ascended do assert(nav.down(),'Cannot descend harvested trunk') end
  assert(nav.back(),'Cannot leave harvested tree location')
+ print('Base: harvested logs in inventory: '..tostring(count(first)))
  -- If a sapling was collected during harvesting, replace the trunk.
  local sapling=first:gsub('_log$','_sapling')
  if selectItem(sapling) and not turtle.detect() then turtle.place() end
