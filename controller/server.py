@@ -63,6 +63,8 @@ class Host:
                         self.colony.queue(rec.turtle_id, *selection)
                 job = rec.outstanding
                 if job and job.state == "queued":
+                    LOG.info("Turtle %d starting job %s [%s]",
+                             rec.turtle_id, job.id, job.action)
                     await websocket.send(json.dumps(job.message()))
                     self.colony.sent(rec.turtle_id, job.id)
                 msg = json.loads(await asyncio.wait_for(websocket.recv(), timeout=1200))
@@ -74,6 +76,14 @@ class Host:
                                                      "shortages": shortages(rec.last_snapshot)}))
                 elif msg.get("type") == "result":
                     applied = self.colony.complete(rec.turtle_id, str(msg.get("id")), msg)
+                    if applied:
+                        if msg.get("ok"):
+                            LOG.info("Turtle %d finished job %s",
+                                     rec.turtle_id, msg.get("id"))
+                        else:
+                            LOG.warning("Turtle %d job %s stopped: %s",
+                                        rec.turtle_id, msg.get("id"),
+                                        msg.get("error", "unknown error"))
                     await websocket.send(json.dumps({"type": "ack", "accepted": applied}))
                 elif msg.get("type") == "ping":
                     await websocket.send('{"type":"pong"}')
