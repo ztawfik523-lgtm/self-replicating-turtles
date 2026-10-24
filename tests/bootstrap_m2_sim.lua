@@ -245,9 +245,32 @@ assert(not ok and tostring(reason):find('power loss'))
 assert(count('minecraft:chest')>=1)
 assert(not world.chest)
 turtle.placeDown=basePlace
+-- A third interruption happens after the furnace is placed and the charcoal
+-- process journal exists. Resume that exact batch instead of harvesting again.
+local oldSmelt=package.loaded.process.run
+local stopSmelt=true
+package.loaded.process.run=function(kind)
+ if stopSmelt then
+  stopSmelt=false
+  d.processing={kind=kind,stage='smelting'}
+  error('simulated power loss in charcoal furnace')
+ end
+ return oldSmelt(kind)
+end
+package.loaded.process.resume=function()
+ assert(d.processing and d.processing.kind=='charcoal')
+ d.processing=nil
+ oldSmelt('charcoal')
+ return true
+end
+ok,reason=pcall(bootstrap.run,'10:initial')
+assert(not ok and tostring(reason):find('power loss'))
+local retainedLogs=count('minecraft:oak_log')
+assert(d.processing~=nil and retainedLogs>0)
 assert(bootstrap.run('10:initial'))
+assert(d.processing==nil)
 assert(d.bootstrap.jobId=='10:initial')
-print('PASS: interrupted planks and chest item resume under original job')
+print('PASS: interrupted planks, chest item and furnace batch resume under original job')
 assert(d.bootstrap.complete==true)
 assert(world.chest and world.furnace)
 assert(count('minecraft:charcoal')>=1)
