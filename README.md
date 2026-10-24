@@ -1,5 +1,19 @@
 # Turtle Genesis
 
+## v0.5.0-dev experimental self-sufficient base
+
+Milestone 1 (parent turtle 10 creating child turtle 11) was verified in-game.
+Milestone 2 is now implemented and passing **offline integration scenarios**,
+but has **not** been verified in-game. Existing turtles 10 and 11 are
+unchanged and won't be sent exploring: base bootstrap requires a fresh turtle
+installed with an explicit `bootstrap` opt-in. The stage combines wood
+harvesting, a chest crafted from logs, sand/stone collection, a furnace,
+initial plank-fired charcoal, storage deposits, and return-to-home checks.
+
+See [Milestone 2 development plan](PLAN.md) and
+[controller documentation](controller/README.md) for restrictions and tests.
+
+
 Minecraft **1.20.1 Forge**, CC: Tweaked, Advanced Peripherals, Turtlematic.
 
 ## Current status — v0.4.0-dev first birth succeeded in Minecraft; v0.3.5 remains the pinned legacy installer

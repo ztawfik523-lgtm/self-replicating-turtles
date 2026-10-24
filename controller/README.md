@@ -117,3 +117,29 @@ CI compiles all Lua source files and runs existing recovery regression tests.
 **Next human-visible acceptance test:** one startup that harvests wood, makes its
 first chest before inventory fills, gathers stone and sand and establishes a
 fuel-producing starter base. No intermediate player tests per operation.
+
+## Milestone 2 — new opt-in starter-base runtime (v0.5.0-dev)
+
+The new `tg/bootstrap.lua` does not use supplied wood, sand, coal, or
+cobblestone. It requires a fresh Mining + Crafting Turtle with an empty item
+inventory, at least **140 loaded movement fuel**, and a wooded surface site
+with reachable sand and shallow stone. It cuts vertical tree logs, crafts its
+first chest before its inventory fills, establishes an offset stone shaft,
+makes a furnace and uses a wood plank to ignite the initial charcoal batch.
+
+**This stage is still simulated only.** Four cardinal search rays with a
+12-block radius are a practical initial bound, not a guarantee of useful
+trees/sand anywhere in a seed. Sapling planting is opportunistic and does not
+yet establish a perpetual tree farm.
+
+`controller/install.lua` accepts an explicit second argument
+`bootstrap` for this milestone. Without that argument the new worker stays
+in normal/controller mode and **will not** bootstrap automatically. Thus
+upgrading turtles 10/11 cannot cause unwanted wandering.
+
+Do not request another user micro-test. Wait for all milestone code and
+manifest tests to pass, then only ask for one complete, substantial
+wood/stone/sand-to-furnace-and-charcoal run.
+
+The main M1 controller and its already-installed copies remain unaffected;
+the new runtime is not automatically delivered to them.

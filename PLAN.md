@@ -132,3 +132,58 @@ chestless mixed-inventory case.
   scaling/chunk-loading. The M1 result does not demonstrate either.
 - **Controller maintenance:** handle closed WebSockets during turtle reboot
   quietly, rather than emitting an unnecessary traceback.
+
+## Milestone 2 implementation — 0.5.0-dev (2026-10-24)
+
+**Implemented and tested offline; NOT yet verified in Minecraft.** The
+M1 parent **10** and offspring **11** have not been upgraded or given
+exploration jobs. The M2 controller task is **explicit opt-in only**.
+
+A fresh Mining + Crafting Turtle, with empty item inventory and **at least
+140 movement fuel already loaded**, can be assigned one `bootstrap` task by
+the Python controller. It uses native CC:Tweaked APIs via these project
+modules, not a new Minecraft mod:
+
+- `tg/bootstrap.lua`: bounded four-direction woodland search, vertical
+  log harvesting with checked return to the same pose, crafting the first chest
+  before collecting unrelated types, sand collection, a **home-offset shallow
+  stone shaft** (never drills through the new home chest), furnace construction,
+  charcoal from logs using planks as the first fuel, and storage deposit.
+- `tg/nav.lua` and `tg/state.lua`: movement/heading journal and local pose.
+  When an interrupted physical action cannot be reconciled reliably, stop
+  instead of fabricating a location.
+- `tg/factory.lua`: existing chest-backed furnace crafting and upgraded
+  `turtle.craft` handling.
+- `tg/process.lua`: existing furnace inventory transfer and processing with
+  **new one-plank-per-log first-charcoal support**; coal/charcoal are preferred
+  when available.
+- `tg/worker.lua`: explicit M2 flag, controller-visible bootstrap stage,
+  child-safe opt-in isolation and a chest inventory report that differentiates
+  inaccessible storage from verified empty storage.
+- `controller/engine.py`: only schedules a base-establishment job when
+  the turtle's installed opt-in flag is present. It will not send existing
+  M1 parents or children away by merely updating the controller.
+- `controller/install.lua`: M2 installation only when the optional
+  `bootstrap` argument is explicitly provided. Copies source files from an
+  immutable tested commit and retains recoverable backups.
+
+**Automated acceptance:** `tests/bootstrap_m2_sim.lua` models a landscape
+with two trees, sand banks and a stone shaft. It verifies actual navigation
+pose matches physical pose, complete base construction and initial charcoal.
+It injects interruptions during the log-to-planks and first-chest stages and
+checks that the same job resumes without repeated harvesting. Separate checks
+exercise the REAL `process.lua` charcoal fuel path, no-tree/low-fuel safe
+stops, bootstrap opt-in isolation, installer rollback, clone inheritance and
+resource snapshot correctness.
+
+**Honest constraints:** The present search explores four short cardinal
+rays (up to 12 blocks each), so it needs a site with reachable logs/sand and
+accessible stone above the shallow depth limit. It is **not** yet a general
+obstacle-avoiding pathfinder or an indefinite sapling farm; forestry planting
+occurs opportunistically only when a suitable sapling is in inventory.
+No complete real-game M2 run has taken place. The first *player* test should
+be one full environment-to-worksite sequence, after all CI release gates pass.
+It should not involve repeatedly testing each craft or movement operation.
+
+**After M2:** gather the iron/redstone/diamond ingredients for M3 and
+demonstrate offspring and grandchild created from world-gathered resources.
