@@ -25,7 +25,11 @@ jobs:
       - name: Install Python test dependencies
         run: python -m pip install "pytest>=8" "pytest-asyncio>=0.24" "websockets>=14,<17"
       - name: Test persistent controller and WebSocket protocol
-        run: python -m pytest -q tests/test_controller.py tests/test_install_manifest.py
+        run: python -m pytest -q tests/test_controller.py
+      - name: Simulate M2 survival bootstrap in woodland mock
+        run: lua5.2 tests/bootstrap_m2_sim.lua
+      - name: Verify runtime installers use the exact source revision
+        run: python -m pytest -q tests/test_install_manifest.py
       - name: Verify actual crafting upgrade auto-equipment
         run: lua5.2 tests/factory_upgrade_sim.lua
       - name: Simulate integrated workshop birth
@@ -34,7 +38,5 @@ jobs:
         run: lua5.2 tests/clone_worker_sim.lua
       - name: Simulate chest bootstrap and complete birth from raw materials
         run: lua5.2 tests/bootstrap_chest_sim.lua
-      - name: Simulate M2 survival bootstrap in woodland mock
-        run: lua5.2 tests/bootstrap_m2_sim.lua
       - name: Simulate controller installer success, staging failure and rollback
         run: lua5.2 tests/controller_installer_sim.lua
