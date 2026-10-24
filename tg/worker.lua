@@ -88,7 +88,15 @@ function M.handle(job)
     and type(job.action)=='string','Invalid job')
  local previous=readJournal()
  if previous.id==job.id then
-  if previous.status=='done' then return previous.result end
+  -- A failed birth is not complete: equipment/material corrections should
+  -- retry the original ID, not manufacture a second child under a new ID.
+  if previous.status=='done' then
+   if job.action~='birth' or (previous.result and previous.result.ok) then
+    return previous.result
+   end
+   if not state.data.birth then return previous.result end
+   print('Retrying paused birth '..job.id)
+  end
   -- Birth is designed to resume from observed resources and lineage count.
   -- Never retry an arbitrary legacy manufacturing operation blindly.
   if previous.status=='started' and job.action~='birth' then
@@ -114,9 +122,15 @@ function M.run(url)
  -- Reconcile a partially executed birth before connecting. The controller
  -- then receives the completed journal and can acknowledge it exactly once.
  local interrupted=readJournal()
- if interrupted.status=='started' and interrupted.action=='birth' then
-  print('Recovering interrupted first-birth job '..tostring(interrupted.id))
-  M.handle({id=interrupted.id,action='birth',args=interrupted.args or {}})
+ local active=state.data.birth
+ if active and active.jobId and
+    (interrupted.id==active.jobId or not interrupted.id) then
+  if interrupted.status=='started' or
+    (interrupted.status=='done' and
+     interrupted.result and interrupted.result.ok==false) then
+   print('Resuming unfinished first birth '..tostring(active.jobId))
+   M.handle({id=active.jobId,action='birth',args=interrupted.args or {}})
+  end
  end
  while true do
   local ok,err=pcall(function()
