@@ -2,7 +2,7 @@ import json
 import pytest
 from websockets.asyncio.client import connect
 from websockets.asyncio.server import serve
-from controller.engine import Colony, shortages, next_job
+from controller.engine import Colony, shortages, next_job, starter_kit_missing
 from controller.server import Host
 
 def hello(journal=None):
@@ -137,4 +137,33 @@ def test_mixed_inventory_requires_a_chest_item(tmp_path):
       "inventory":[{"name":k,"count":n} for k,n in raw.items()]}
     assert next_job(rec) is None
     rec.last_snapshot["inventory"].append({"name":"minecraft:chest","count":1})
+    assert next_job(rec)[0]=="birth"
+
+def test_first_birth_idle_explains_specific_material_shortages(tmp_path, caplog):
+    host=Host(tmp_path/"state.json")
+    rec=host.colony.register(hello())
+    rec.last_snapshot={"inventory": [], "front": None, "bottom": "minecraft:dirt"}
+    missing=starter_kit_missing(rec.last_snapshot)
+    assert missing["minecraft:chest"]==1
+    assert missing["minecraft:raw_iron"]==7
+    assert missing["same_type_planks"]==14
+    assert missing["coal_or_charcoal"]==8
+    with caplog.at_level("INFO", logger="genesis"):
+        host.report_if_waiting(rec)
+        host.report_if_waiting(rec)
+    assert caplog.text.count("standard first-birth kit missing")==1
+
+def test_full_material_kit_is_not_reported_as_idle(tmp_path, caplog):
+    host=Host(tmp_path/"state.json")
+    rec=host.colony.register(hello())
+    kit={"minecraft:chest":1, "minecraft:cobblestone":22,
+         "minecraft:raw_iron":7, "minecraft:redstone":3,
+         "minecraft:diamond":3, "minecraft:sand":6,
+         "minecraft:oak_planks":14, "minecraft:charcoal":8}
+    rec.last_snapshot={"inventory":[{"name":key,"count":value}
+                                for key,value in kit.items()],
+                      "front":None, "bottom":None}
+    with caplog.at_level("INFO", logger="genesis"):
+        host.report_if_waiting(rec)
+    assert "standard first-birth kit missing" not in caplog.text
     assert next_job(rec)[0]=="birth"
