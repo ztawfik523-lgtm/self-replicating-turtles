@@ -18,26 +18,37 @@ local function matchingPlanks()
   end
 end
 local function hasCrafting()
-  for _,side in ipairs({'Left','Right'}) do
-    local fn=turtle['getEquipped'..side]
-    local d=fn and fn()
-    if d and d.name=='minecraft:crafting_table' then return true end
-  end
-  return false
+  -- Crafting is registered by CC:Tweaked's turtle API when the upgrade is
+  -- equipped with turtle.equipLeft/Right. Some versions do not expose
+  -- getEquippedLeft/Right, and GUI installation may need a reboot.
+  return type(turtle.craft)=='function'
 end
 local function ensureCrafting()
-  if hasCrafting() then return end
+  if hasCrafting() then return true end
+  local original=turtle.getSelectedSlot()
   local slot
-  for i=1,16 do if detail(i) and detail(i).name=='minecraft:crafting_table' then slot=i;break end end
-  assert(slot,'This Mining Turtle needs a crafting table item to equip')
-  local left,right=turtle.getEquippedLeft(),turtle.getEquippedRight()
-  assert(not left or not right,'Both upgrade slots occupied; make room for crafting')
+  for i=1,16 do
+    local item=detail(i)
+    if item and item.name=='minecraft:crafting_table' then slot=i;break end
+  end
+  if not slot then
+    error('Crafting upgrade not active. Put one crafting table ITEM in inventory, or reboot if equipped through GUI')
+  end
+  local left=turtle.getEquippedLeft and turtle.getEquippedLeft() or nil
+  local right=turtle.getEquippedRight and turtle.getEquippedRight() or nil
+  -- When these introspection functions are not available on older CC builds,
+  -- prefer left; the usual mining upgrade is on the right.
+  local side
+  if not left then side='Left'
+  elseif not right then side='Right'
+  else error('Both turtle upgrade slots are occupied: cannot equip crafting without moving an upgrade') end
   turtle.select(slot)
-  local ok,why
-  if not left then ok,why=turtle.equipLeft() else ok,why=turtle.equipRight() end
-  assert(ok,'Cannot equip crafting table: '..tostring(why))
-  assert(hasCrafting(),'Crafting table upgrade did not register')
-  print('Equipped crafting upgrade')
+  local ok,why=turtle['equip'..side]()
+  turtle.select(original)
+  assert(ok,'Cannot equip crafting table on '..side..': '..tostring(why))
+  assert(hasCrafting(),'Crafting upgrade was equipped but turtle.craft is unavailable; reboot turtle once')
+  print('Crafting upgrade equipped automatically on '..side)
+  return true
 end
 local function chest()
   local exists,block=turtle.inspectDown()
@@ -125,6 +136,9 @@ local function craftStep(label,pattern,expected)
   for name,n in pairs(demand) do
     assert(count(name)>=n,('%s: missing %s (%d/%d)'):format(label,name,count(name),n))
   end
+  -- Equipping is necessary even when a table item was inserted after boot.
+  -- Do this BEFORE disturbing the inventory, never after arranging a recipe.
+  ensureCrafting()
   assert(emptyChest(),'Chest not empty; run tg/main.lua collect first')
   -- Unrelated items cannot remain in any inventory slot during turtle.craft.
   for i=1,16 do
