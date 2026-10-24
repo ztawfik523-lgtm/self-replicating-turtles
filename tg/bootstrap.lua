@@ -374,4 +374,73 @@ function M.run(jobId)
  print('Base: complete; chest, furnace and charcoal available at home')
  return true
 end
+-- Reusable fuel loop after the first base has been established.
+-- Job ID is recorded after successful processing to prevent duplicate batches
+-- if a network response is lost after the furnace completes.
+function M.fuelCycle(jobId)
+ state.assertSafe()
+ local home=assert(state.data.bootstrap,'No initialized M2 base')
+ assert(home.complete,'Fuel maintenance requires a completed base')
+ assert(jobId and type(jobId)=='string','Fuel job ID required')
+ if state.data.lastFuelJob==jobId then return true end
+ atHome()
+ assert(block('down')=='minecraft:chest',
+  'Base storage is missing; refuse to stage items in open air')
+ assert(block('front')=='minecraft:furnace',
+  'Base furnace no longer faces the turtle')
+ local old=turtle.getSelectedSlot()
+ state.data.fuelCycle={jobId=jobId,stage='prepare'}
+ state.save()
+ local chest=peripheral.wrap('bottom')
+ assert(chest and type(chest.list)=='function','Cannot inspect the base storage')
+ if next(chest.list()) then factory.collect() end
+ if state.data.processing then
+  state.data.fuelCycle.stage='recover_smelt'
+  state.save()
+  local ok,reason=process.resume()
+  assert(ok,'Previous charcoal processing is paused: '..tostring(reason))
+ end
+ if count('minecraft:charcoal')+count('minecraft:coal')>=3 then
+  state.data.lastFuelJob=jobId
+  state.data.fuelCycle=nil
+  state.save()
+  deposit()
+  turtle.select(old)
+  return true
+ end
+ state.data.fuelCycle.stage='harvest_more_wood'
+ state.save()
+ local wood,logs=matching('log')
+ if not wood or logs<3 then
+  scan('wood',4)
+  wood,logs=matching('log')
+ end
+ assert(wood and logs>=2,'Insufficient accessible trees for another fuel batch')
+ local plankName=wood:gsub('_log$','_planks')
+ if count(plankName)<math.min(logs,4) and
+     count('minecraft:coal')+count('minecraft:charcoal')==0 then
+  state.data.fuelCycle.stage='craft_furnace_fuel'
+  state.save()
+  factory.craftStep('wooden_fuel_planks',{[1]=wood},plankName)
+ end
+ assert(count(wood)>=1,'No logs left to smelt after obtaining furnace fuel')
+ state.data.fuelCycle.stage='make_charcoal'
+ state.save()
+ if state.data.processing then
+  local ok,reason=process.resume()
+  assert(ok,'Cannot finish interrupted charcoal: '..tostring(reason))
+ else
+  process.run('charcoal')
+ end
+ atHome()
+ assert(count('minecraft:charcoal')>=1,
+  'Charcoal fuel cycle finished without recovering charcoal')
+ state.data.lastFuelJob=jobId
+ state.data.fuelCycle=nil
+ state.save()
+ deposit()
+ turtle.select(old)
+ print('Base: charcoal replenished and surplus stored')
+ return true
+end
 return M
