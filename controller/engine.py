@@ -154,6 +154,34 @@ def shortages(snapshot: dict[str, Any]) -> dict[str, int]:
         deficit["coal_or_charcoal"] = 4-fuel
     return deficit
 
+def starter_kit_missing(view: dict[str, Any]) -> dict[str, int]:
+    """Human-readable shortages for the standard first-birth inventory kit.
+
+    This is a diagnostic for the supplied-materials acceptance test, not a
+    general recipe resolver. Existing placed machinery or already-processed
+    inputs can change the actual requirements in birth_inputs_ready().
+    """
+    items = count_items(view)
+    expected = {
+        "minecraft:chest": 1,
+        "minecraft:cobblestone": 22,
+        "minecraft:raw_iron": 7,
+        "minecraft:redstone": 3,
+        "minecraft:diamond": 3,
+        "minecraft:sand": 6,
+    }
+    missing = {k: need - items.get(k, 0) for k, need in expected.items()
+               if items.get(k, 0) < need}
+    planks = max((n for k, n in items.items()
+                  if k.startswith("minecraft:") and k.endswith("_planks")),
+                 default=0)
+    if planks < 14:
+        missing["same_type_planks"] = 14 - planks
+    fuels = items.get("minecraft:coal", 0) + items.get("minecraft:charcoal", 0)
+    if fuels < 8:
+        missing["coal_or_charcoal"] = 8 - fuels
+    return missing
+
 def birth_inputs_ready(view: dict[str,Any]) -> bool:
     """Minimum materials for experimental starter-chest first birth."""
     items = count_items(view)
