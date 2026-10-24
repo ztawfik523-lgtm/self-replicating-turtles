@@ -8,9 +8,28 @@ Minecraft **1.20.1 Forge**, CC: Tweaked, Advanced Peripherals, Turtlematic.
 
 - **Verified in Minecraft:** mining, manufactured offspring from supplied components, parent programming and booting an offspring.
 - **Implemented and mock-tested (not yet verified in Minecraft):** furnace processing of raw iron, gold, cobblestone, sand and logs using temporary inventory storage.
-- **Not implemented:** automated gathering of every manufacturing resource, harvesting/replanting trees, assembling infrastructure without supplied blocks, reliable long-range exploration.
+- **Milestone 2 under development (offline only):** opt-in, bounded tree harvesting, first-chest crafting, shallow cobblestone and sand gathering, reusable furnace, initial charcoal production, and return to base. An interrupted first-chest craft or charcoal batch can resume from observed state. Real Minecraft acceptance is still outstanding.
+- **Not implemented:** unrestricted search, reliable sapling farming, independent iron/redstone/diamond gathering, multi-base logistics and multi-generation colony reproduction.
 
 This is a fixed-recipe robotics experiment, **not** a general AI or mature unattended survival colony.
+
+### Experimental Milestone 2 bootstrap
+
+The M2 track is **not** installed by the legacy root installer. The opt-in
+controller installer enables the bounded bootstrap job with an explicit
+`bootstrap` argument; its pinned sources are validated in CI.
+
+The experimental environment assumes one Mining + Crafting Turtle with empty
+inventory, at least 140 fuel **already loaded into the turtle**, accessible
+trees and sand on straight survey rays near the start, and diggable shallow
+stone. It does not yet provide robust detours or arbitrarily long-range
+exploration. The turtle builds its own chest before collecting mixed ores.
+
+Recovery refuses to guess an interrupted movement position. The bootstrap can
+reconcile already-converted planks, a manufactured chest item, and an interrupted
+furnace batch if the turtle is still at its saved home and navigation state is
+unambiguous. An inaccessible base chest is reported as unknown storage rather
+than miscounted as empty. **No Minecraft milestone acceptance is claimed.**
 
 ## Update (in any installed turtle)
 
