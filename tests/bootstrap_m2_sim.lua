@@ -171,6 +171,7 @@ turtle={
    assert(item(i) and item(i).name=='minecraft:oak_planks')
   end
   assert(not item(6),'Chest grid center is not empty')
+  if n==0 then return true end -- turtle.craft(0) checks without consuming
   spend('minecraft:oak_planks',8)
   slots[16]={name='minecraft:chest',count=1}
   return true
@@ -212,7 +213,41 @@ package.loaded.process={
  end
 }
 local bootstrap=dofile('tg/bootstrap.lua')
+-- This is one integrated M2 acceptance simulation with two injected reboot
+-- points: one after log-to-plank conversion and one after chest manufacture.
+-- Neither interruption may require extra trees or reset the job ID.
+local baseCraft=turtle.craft
+local basePlace=turtle.placeDown
+local stopCraft=true
+turtle.craft=function(n)
+ if stopCraft and item(1) and item(1).name=='minecraft:oak_planks'
+     and item(2) and item(2).name=='minecraft:oak_planks' then
+  stopCraft=false
+  error('simulated power loss before first chest craft')
+ end
+ return baseCraft(n)
+end
+local ok,reason=pcall(bootstrap.run,'10:initial')
+assert(not ok and tostring(reason):find('power loss'))
+assert(count('minecraft:oak_planks')>=8)
+assert(not world.chest)
+turtle.craft=baseCraft
+local stopPlacement=true
+turtle.placeDown=function()
+ if stopPlacement then
+  stopPlacement=false
+  error('simulated power loss after first chest craft')
+ end
+ return basePlace()
+end
+ok,reason=pcall(bootstrap.run,'10:initial')
+assert(not ok and tostring(reason):find('power loss'))
+assert(count('minecraft:chest')>=1)
+assert(not world.chest)
+turtle.placeDown=basePlace
 assert(bootstrap.run('10:initial'))
+assert(d.bootstrap.jobId=='10:initial')
+print('PASS: interrupted planks and chest item resume under original job')
 assert(d.bootstrap.complete==true)
 assert(world.chest and world.furnace)
 assert(count('minecraft:charcoal')>=1)
