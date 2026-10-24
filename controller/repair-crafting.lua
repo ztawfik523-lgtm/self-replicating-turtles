@@ -64,5 +64,7 @@ if not applied then
 end
 fs.delete(STAGE);fs.delete(BACKUP)
 print('Crafting repair installed; resources and active birth kept')
-print('Restarting worker to resume the SAME birth task')
-shell.run('/tg/worker-entry.lua')
+print('Rebooting once to activate any GUI-installed crafting upgrade')
+print('Genesis will resume the SAME birth job after startup')
+sleep(1)
+os.reboot()
