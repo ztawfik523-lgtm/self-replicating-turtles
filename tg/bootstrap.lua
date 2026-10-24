@@ -333,7 +333,12 @@ function M.run(jobId)
   assert(count('minecraft:sand')>=6,
    'No six sand near home; relocate base near a river or sandy terrain')
  end
- if count('minecraft:cobblestone')<8 then
+ -- A finished furnace consumed the eight cobblestone. A restart MUST
+ -- observe that furnace (placed or carried) before asking for more stone.
+ -- This also resumes safely after furnace crafting but before placement.
+ if block('front')~='minecraft:furnace'
+     and count('minecraft:furnace')==0
+     and count('minecraft:cobblestone')<8 then
   mark('gather_cobblestone')
   mineCobble()
  end
