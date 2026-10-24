@@ -78,9 +78,9 @@ A single Mining + Crafting Turtle starts with an initial fuel supply in an ordin
 
 ## Implementation status — 2026-10-24
 
-**Milestone 1 has an offline-integrated release candidate; it has NOT passed a
-real Minecraft end-to-end run.** The player has not been asked to debug or
-run intermediate checks.
+**Milestone 1 passed a real Minecraft end-to-end run on 2026-10-24.** The
+subsequent Milestone 2 autonomous base bootstrap remains an experimental,
+offline-simulated development track; it has not passed Minecraft acceptance.
 
 Implemented:
 - Controller WebSocket job scheduler, persistent job IDs, and snapshot-based
@@ -125,10 +125,31 @@ chestless mixed-inventory case.
 - **M1 ACCEPTED IN-GAME:** one parent turtle built the small first workshop and
   produced/programmed/booted its first child from supplied inventory items.
   Turtle **10** = parent; turtle **11** = offspring; both reconnected to Python.
-- **M2 NEXT:** wood/stone/sand gathering, first chest crafted *before* the turtle
-  fills with mixed item types, furnace and charcoal self-supply, home return and
-  recovery. Do not ask the player to test individual algorithms.
+- **M2 IN DEVELOPMENT:** opt-in bounded wood/stone/sand gathering, a chest
+  crafted before mixed inventory, furnace and charcoal supply, return-home,
+  plus first-chest/furnace interruption recovery. Automated simulations cover
+  the happy path and selected reboots; Minecraft acceptance remains pending.
+  Do not ask the player to test individual algorithms.
 - **M3–M4 NOT IMPLEMENTED:** independent ore acquisition, recursive children,
   scaling/chunk-loading. The M1 result does not demonstrate either.
 - **Controller maintenance:** handle closed WebSockets during turtle reboot
   quietly, rather than emitting an unnecessary traceback.
+
+## M2 implementation guardrails and next substantial gate
+
+- Controller schedules one opt-in `bootstrap` job; default root installer remains
+  pinned to legacy behavior. A child does not automatically inherit the opt-in.
+- First-chest crafting can resume from physical logs, already-converted planks,
+  an interrupted recipe layout or a chest item. It must never require unrelated
+  inventory slots to be occupied while using `turtle.craft`.
+- Existing charcoal furnace batches are reconciled before another forestry
+  trip; partial chest deposits never silently mark a base complete.
+- The controller records physically observed chest stock, but pauses shared
+  tasks when that storage is present and unavailable through peripherals.
+- The current four-ray forest/sand survey and shallow shaft are intentionally
+  bounded. Better obstacle navigation, terrain variability, restart-safe
+  movement, and a renewable fuel loop are necessary before claiming broad
+  terrain autonomy.
+- **Next worthwhile human check:** one start-to-finish M2 base build in
+  Minecraft, requested only after offline integration gates are clean; no
+  commit-by-commit player testing.
