@@ -7,8 +7,10 @@ local sel=1
 local d={pose={x=0,y=0,z=0,dir=0},moves=0,children=0}
 local world={chest=false,furnace=false}
 local trees={['0:1']=4,['4:0']=4}
+local cut={}
 local sand={}
-for x=1,6 do sand[x..':0']=true end
+for x=1,3 do sand[x..':0']=true end
+for x=-3,-1 do sand[x..':0']=true end
 local stoneDepth=0
 local moves=0
 local function key(x,z)return x..':'..z end
@@ -52,7 +54,8 @@ local function blockFront()
  if world.furnace and d.pose.x==0 and d.pose.z==0 and d.pose.dir==0 then
   return 'minecraft:furnace'
  end
- if d.pose.y>=0 and trees[key(x,z)] and d.pose.y<trees[key(x,z)] then
+ if d.pose.y>=0 and trees[key(x,z)] and d.pose.y<trees[key(x,z)]
+    and not cut[key(x,z)..':'..d.pose.y] then
   return 'minecraft:oak_log'
  end
  return nil
@@ -84,7 +87,8 @@ turtle={
   return n~=nil,n and {name=n} or nil
  end,
  inspectUp=function()
-  local n=(trees[key(d.pose.x,d.pose.z)] and d.pose.y+1<trees[key(d.pose.x,d.pose.z)])
+  local n=(trees[key(d.pose.x,d.pose.z)] and d.pose.y+1<trees[key(d.pose.x,d.pose.z)]
+    and not cut[key(d.pose.x,d.pose.z)..':'..(d.pose.y+1)])
       and 'minecraft:oak_log' or nil
   return n~=nil,n and {name=n} or nil
  end,
@@ -108,16 +112,17 @@ turtle={
   local n=trees[key(x,z)]
   if n and d.pose.y<n then
    -- Mark harvested log at the current height, while keeping upper logs.
-   if d.pose.y==0 then
-    local height=n
-    trees[key(x,z)]=height
-   end
+   cut[key(x,z)..':'..d.pose.y]=true
    add('minecraft:oak_log',1)
    return true
   end
   return true
  end,
- digUp=function()add('minecraft:oak_log',1);return true end,
+ digUp=function()
+  cut[key(d.pose.x,d.pose.z)..':'..(d.pose.y+1)]=true
+  add('minecraft:oak_log',1)
+  return true
+ end,
  digDown=function()
   local n=below()
   if n=='minecraft:sand' then
@@ -212,5 +217,5 @@ assert(world.chest and world.furnace)
 assert(count('minecraft:charcoal')>=1)
 assert(d.pose.x==0 and d.pose.y==0 and d.pose.z==0 and d.pose.dir==0)
 assert(stoneDepth>=8,'No cobblestone mining happened')
-assert(not next(trees)==false)
+assert(cut['0:1:0'] and cut['4:0:0'])
 print('PASS: two trees, sand, shallow stone, chest, furnace and charcoal')
