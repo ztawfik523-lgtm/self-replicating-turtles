@@ -7,6 +7,7 @@ local sel=1
 local d={pose={x=0,y=0,z=0,dir=0},moves=0,children=0}
 local physical={x=0,y=0,z=0,dir=0}
 local world={chest=false,furnace=false}
+local stored={}
 local trees={['0:1']=4,['4:0']=4}
 local cut={}
 local sand={}
@@ -155,6 +156,8 @@ turtle={
  end,
  dropDown=function()
   assert(world.chest,'No storage to drop into')
+  local d=slots[sel]
+  if d then stored[d.name]=(stored[d.name] or 0)+d.count end
   slots[sel]=nil
   return true
  end,
@@ -193,6 +196,13 @@ package.loaded.state={data=d,save=function()end,
 package.loaded.fuel={level=function()return turtle.getFuelLevel()end,
  ensure=function(n)return turtle.getFuelLevel()>=n end}
 package.loaded.factory={
+ collect=function()
+  for name,n in pairs(stored) do
+   if n>0 then add(name,n) end
+  end
+  stored={}
+  return true
+ end,
  craftStep=function(label,pattern,out)
   assert(world.chest)
   assert(label=='bootstrap_furnace')
@@ -258,3 +268,21 @@ assert(d.pose.x==physical.x and d.pose.y==physical.y and
 assert(stoneDepth>=8,'No cobblestone mining happened')
 assert(cut['0:1:0'] and cut['4:0:0'])
 print('PASS: two trees, sand, shallow stone, chest, furnace and charcoal')
+
+-- Replenish fuel at the SAME base after the player/next job consumes it.
+assert((stored['minecraft:sand'] or 0)==6,
+ 'Sand must be retained in chest after bootstrap')
+spend('minecraft:charcoal',count('minecraft:charcoal'))
+trees['-4:0']=4  -- new reachable tree after prior harvest
+assert(bootstrap.fuelCycle('10:renewal:1'))
+assert(d.lastFuelJob=='10:renewal:1')
+assert(d.fuelCycle==nil)
+assert(count('minecraft:charcoal')>=3)
+assert(stored['minecraft:sand']==6,
+ 'Fuel replenishment lost stored sand')
+assert(cut['-4:0:0'],'Fuel replenishment did not harvest available tree')
+assert(bootstrap.fuelCycle('10:renewal:1'))
+assert(count('minecraft:charcoal')>=3,
+ 'Repeated completion ID should not consume resources')
+assert(physical.x==0 and physical.y==0 and physical.z==0 and physical.dir==0)
+print('PASS: depleted base fuel is renewed without rebuilding or losing stock')
