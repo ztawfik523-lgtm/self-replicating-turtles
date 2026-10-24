@@ -91,6 +91,10 @@ local function execute(job)
   require('bootstrap').run(job.id)
   return {base_established=true,snapshot=snapshot()}
  end
+ if a=='fuel_cycle' then
+  require('bootstrap').fuelCycle(job.id)
+  return {charcoal_replenished=true,snapshot=snapshot()}
+ end
  if a=='birth' then
   require('workshop').run(job.id)
   return {child_created=true,snapshot=snapshot()}
@@ -112,7 +116,8 @@ function M.handle(job)
   -- A failed birth is not complete: equipment/material corrections should
   -- retry the original ID, not manufacture a second child under a new ID.
   if previous.status=='done' then
-   if (job.action~='birth' and job.action~='bootstrap') or
+   if (job.action~='birth' and job.action~='bootstrap'
+       and job.action~='fuel_cycle') or
       (previous.result and previous.result.ok) then
     return previous.result
    end
@@ -122,12 +127,15 @@ function M.handle(job)
    if job.action=='bootstrap' and not state.data.bootstrap then
     return previous.result
    end
+   if job.action=='fuel_cycle' and not state.data.fuelCycle then
+    return previous.result
+   end
    print('Retrying paused '..job.action..' '..job.id)
   end
   -- Birth is designed to resume from observed resources and lineage count.
   -- Never retry an arbitrary legacy manufacturing operation blindly.
   if previous.status=='started' and job.action~='birth'
-      and job.action~='bootstrap' then
+      and job.action~='bootstrap' and job.action~='fuel_cycle' then
    return {type='result',id=job.id,ok=false,
       error='Interrupted operation requires physical reconciliation'}
   end
@@ -169,6 +177,15 @@ function M.run(url)
      (interrupted.status=='done' and interrupted.result
        and interrupted.result.ok==false) then
    M.handle({id=base.jobId,action='bootstrap',args=interrupted.args or {}})
+  end
+ end
+ local cycle=state.data.fuelCycle
+ if cycle and cycle.jobId and interrupted.id==cycle.jobId
+     and interrupted.action=='fuel_cycle' then
+  if interrupted.status=='started' or
+      (interrupted.status=='done' and interrupted.result
+        and interrupted.result.ok==false) then
+   M.handle({id=cycle.jobId,action='fuel_cycle',args=interrupted.args or {}})
   end
  end
  while true do

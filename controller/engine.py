@@ -63,7 +63,7 @@ class Colony:
         return rec
 
     def queue(self, ident: int, action: str, args: dict[str, Any] | None = None) -> Job:
-        if action not in {"observe", "process", "produce", "birth", "bootstrap", "collect", "station_pack"}:
+        if action not in {"observe", "process", "produce", "birth", "bootstrap", "fuel_cycle", "collect", "station_pack"}:
             raise ValueError("Unsupported turtle task: " + action)
         rec = self.turtles[ident]
         if rec.outstanding:
@@ -220,6 +220,20 @@ def next_job(rec: TurtleRecord) -> tuple[str,dict[str,Any]] | None:
         if rec.blocked.get("bootstrap") != key:
             return "bootstrap", {"snapshot_key":key}
         return None
+    if view.get("bootstrap_enabled") and view.get("bootstrap_done"):
+        # Only autonomously replenish fuel at a verified M2 chest/furnace.
+        if view.get("front")=="minecraft:furnace" and (
+              view.get("bottom")=="minecraft:chest"
+              or view.get("bottom")=="minecraft:barrel"):
+            stock=count_items(view)
+            for name,n in (view.get("storage") or {}).items():
+                stock[name]=stock.get(name,0)+int(n)
+            total=stock.get("minecraft:charcoal",0)+stock.get("minecraft:coal",0)
+            if total<3:
+                key=json.dumps({"fuel":total,"pose":view.get("pose"),
+                                "stage":view.get("bootstrap_stage")},sort_keys=True)
+                if rec.blocked.get("fuel_cycle")!=key:
+                    return "fuel_cycle",{"snapshot_key":key}
     if any(view.get(k) for k in
            ("processing", "manufacturing", "replication", "station", "birth")):
         return None
