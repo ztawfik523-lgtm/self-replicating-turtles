@@ -195,6 +195,18 @@ package.loaded.state={data=d,save=function()end,
  assertSafe=function()assert(not d.pending)end}
 package.loaded.fuel={level=function()return turtle.getFuelLevel()end,
  ensure=function(n)return turtle.getFuelLevel()>=n end}
+peripheral={wrap=function(side)
+ if side=='bottom' and world.chest then
+  return {list=function()
+   local result={}
+   local i=1
+   for name,n in pairs(stored) do
+    if n>0 then result[i]={name=name,count=n};i=i+1 end
+   end
+   return result
+  end}
+ end
+end}
 package.loaded.factory={
  collect=function()
   for name,n in pairs(stored) do
