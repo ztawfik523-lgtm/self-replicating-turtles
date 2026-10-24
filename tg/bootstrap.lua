@@ -287,6 +287,10 @@ local function deposit()
   if d and not retain[d.name] then
    turtle.select(i)
    assert(turtle.dropDown(),'Storage chest full; cannot deposit '..d.name)
+   -- dropDown can return success for a PARTIAL transfer if the chest filled.
+   -- Never label a stockpile complete while materials remain in the turtle.
+   assert(turtle.getItemCount(i)==0,
+    'Storage chest only accepted part of '..d.name..'; retry after making room')
   end
  end
  turtle.select(old)
@@ -337,13 +341,23 @@ function M.run(jobId)
   mark('craft_and_place_furnace')
   furnace()
  end
+ -- A power cut during smelting leaves inputs/outputs in the actual furnace.
+ -- Reconcile that physical batch FIRST; do not harvest another tree or start
+ -- another batch just because the turtle's inventory lacks charcoal.
+ if state.data.processing then
+  mark('resume_first_charcoal')
+  local ok,reason=process.resume()
+  assert(ok,'Cannot resume interrupted charcoal: '..tostring(reason))
+ end
  if count('minecraft:charcoal')==0 then
-  -- A plank lights the first smelt. Harvest after constructing the chest
-  -- but BEFORE occupying the front face with furnace; if a furnace already
-  -- occupies front, other clear exploration rays may still work.
-  mark('gather_charcoal_logs')
-  local _,n=scan('wood',4)
-  assert(n>=1,'Need one more tree for charcoal; no accessible logs')
+  -- A plank lights the initial batch. Reuse harvested logs after recovery,
+  -- gathering another tree only when the turtle genuinely lacks fuel inputs.
+  local _,n=matching('log')
+  if n<1 then
+   mark('gather_charcoal_logs')
+   _,n=scan('wood',4)
+  end
+  assert(n>=1,'Need another tree for charcoal; no accessible logs')
   mark('smelt_first_charcoal')
   process.run('charcoal')
  end
