@@ -128,7 +128,29 @@ assert(files['/tg/worker.lua']==readRepo('tg/worker.lua'))
 assert(files['/tg/workshop.lua']==readRepo('tg/workshop.lua'))
 assert(files['/tg/state.dat']=='persistent turtle state')
 assert(files['/tg/worker-config.dat']=='ws://controller:8765')
+assert(files['/tg/bootstrap-opt-in.dat']==nil,
+ 'Upgrading an existing parent must not enable M2 exploration')
+assert(files['/tg/bootstrap.lua']==readRepo('tg/bootstrap.lua'))
 assert(launches==1)
 assert(not fs.exists('/tg-controller-download'))
 assert(not fs.exists('/tg-controller-backup'))
 print('PASS: first-birth installer stages, installs and starts worker')
+
+reset()
+assert(installer('ws://controller:8765','bootstrap')==nil)
+assert(files['/tg/bootstrap-opt-in.dat']=='enabled',
+ 'Explicit M2 opt-in did not reach worker')
+assert(files['/tg/bootstrap.lua']==readRepo('tg/bootstrap.lua'))
+assert(files['/tg/state.dat']=='persistent turtle state')
+assert(launches==2)
+print('PASS: only explicit bootstrap install enables M2; existing state preserved')
+
+reset()
+failCopy='/tg/bootstrap.lua'
+ok=pcall(installer,'ws://controller:8765','bootstrap')
+assert(not ok)
+assert(files['/tg/bootstrap-opt-in.dat']==nil,
+ 'Failed M2 install must not leave an exploration flag')
+assert(files['/startup.lua']=='legacy startup')
+assert(files['/tg/state.dat']=='persistent turtle state')
+print('PASS: failed M2 install leaves original turtle safe')
