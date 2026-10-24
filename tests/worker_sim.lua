@@ -13,9 +13,20 @@ textutils={serialize=function(v)_G.saved=v;return 'state' end,
 turtle={getItemDetail=function()return nil end,
  getFuelLevel=function()return 100 end,
  inspect=function()return false end,inspectDown=function()return false end}
+peripheral={wrap=function(side)
+ if side=='bottom' then
+  return {list=function()return {
+   [1]={name='minecraft:sand',count=5},
+   [2]={name='minecraft:sand',count=2},
+   [3]={name='minecraft:cobblestone',count=8},
+  }end}
+ end
+end}
 local w=dofile('tg/worker.lua')
 local one=w.handle({id='7:1',action='observe'})
 assert(one.ok and one.data.fuel==100)
+assert(one.data.storage['minecraft:sand']==7)
+assert(one.data.storage['minecraft:cobblestone']==8)
 assert(files['/tg/worker-job.dat'])
 assert(w.handle({id='7:1',action='observe'}).ok)
 assert(not w.handle({id='7:2',action='unknown'}).ok)
