@@ -40,10 +40,12 @@ hostFiles['/tg/worker-config.dat']='ws://127.0.0.1:8765'
 local clone=dofile('tg/clone.lua')
 assert(clone.install('front')=='/disk')
 for _,p in ipairs({'startup.lua','tg/worker.lua',
-  'tg/workshop.lua','tg/worker-entry.lua'}) do
+  'tg/workshop.lua','tg/bootstrap.lua','tg/worker-entry.lua'}) do
  assert(media['/disk/'..p]==hostRead(p),'Child missing '..p)
 end
 assert(media['/disk/tg/worker-config.dat']==hostFiles['/tg/worker-config.dat'])
+assert(media['/disk/tg/bootstrap-opt-in.dat']==nil,
+ 'Child inherited permission to abandon the shared workshop')
 assert(media['/disk/tg/seed.dat']:find('generation=1'))
 print('PASS: child inherits startup, worker, workshop, controller URL, lineage')
 
