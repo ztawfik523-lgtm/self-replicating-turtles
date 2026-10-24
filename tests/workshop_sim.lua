@@ -48,6 +48,13 @@ local function fixture(initial,front,below)
    save=function()end,assertSafe=function()end}
  package.loaded.state=st
  package.loaded.factory={
+  equipCrafting=function()
+   return true
+  end,
+  collect=function()
+   -- The full factory provides this; this test has no staged chest items.
+   return true
+  end,
   craftStep=function(label,pattern,output)
    assert(world.bottom=='minecraft:chest')
    local needs={}

@@ -108,6 +108,8 @@ local st={data={pose={x=0,y=0,z=0,dir=0},children=0},
  save=function()end,assertSafe=function()end}
 package.loaded.state=st
 package.loaded.factory={
+ equipCrafting=function()return true end,
+ collect=function()return true end,
  craftStep=function(_,pattern,output)
   assert(world.bottom=='minecraft:chest')
   local wanted={}

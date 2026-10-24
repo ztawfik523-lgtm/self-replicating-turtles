@@ -39,3 +39,19 @@ files['/tg/worker-job.dat']=nil
 assert(w.handle(job).ok and births==2,
  'Interrupted journal rename replayed a completed birth')
 print('PASS: Lua worker snapshot, resume, journal backup fallback')
+
+-- A failed birth must be retryable with the SAME job ID once an upgrade
+-- arrives. The previous implementation returned the old failed result.
+local attempts=0
+package.loaded.state.data.birth={jobId='7:4',stage='craft_furnace'}
+package.loaded.workshop={run=function(jobId)
+ assert(jobId=='7:4')
+ attempts=attempts+1
+ if attempts==1 then error('Crafting upgrade missing') end
+ package.loaded.state.data.birth=nil
+end}
+local stalled={id='7:4',action='birth',args={}}
+assert(not w.handle(stalled).ok)
+assert(w.handle(stalled).ok)
+assert(attempts==2,'Previously failed birth must resume, not be deduplicated')
+print('PASS: previously failed birth retries after prerequisite correction')
