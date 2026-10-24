@@ -73,7 +73,8 @@ local function snapshot()
   birth=d.birth~=nil,children=d.children or 0,
   bootstrap_enabled=fs.exists('/tg/bootstrap-opt-in.dat'),
   bootstrap_done=d.bootstrap and d.bootstrap.complete==true or false,
-  bootstrap_stage=d.bootstrap and d.bootstrap.stage or nil}
+  bootstrap_stage=d.bootstrap and d.bootstrap.stage or nil,
+  fuel_cycle=d.fuelCycle~=nil}
 end
 local function execute(job)
  local a=job.action

@@ -220,7 +220,10 @@ def next_job(rec: TurtleRecord) -> tuple[str,dict[str,Any]] | None:
         if rec.blocked.get("bootstrap") != key:
             return "bootstrap", {"snapshot_key":key}
         return None
-    if view.get("bootstrap_enabled") and view.get("bootstrap_done"):
+    if (view.get("bootstrap_enabled") and view.get("bootstrap_done")
+        and view.get("storage_observed")
+        and not any(view.get(k) for k in ("processing", "manufacturing",
+                       "replication", "station", "birth", "fuel_cycle"))):
         # Only autonomously replenish fuel at a verified M2 chest/furnace.
         if view.get("front")=="minecraft:furnace" and (
               view.get("bottom")=="minecraft:chest"
