@@ -9,6 +9,7 @@ import logging
 import os
 from pathlib import Path
 from websockets.asyncio.server import serve
+from websockets.exceptions import ConnectionClosed
 from .engine import Colony, shortages, next_job, starter_kit_missing, birth_inputs_ready
 
 LOG = logging.getLogger("genesis")
@@ -78,7 +79,8 @@ class Host:
                     await websocket.send('{"type":"pong"}')
                 else:
                     await websocket.send('{"type":"error","reason":"Unsupported message"}')
-        except (EOFError, ConnectionError, OSError, TimeoutError, json.JSONDecodeError) as err:
+        except (ConnectionClosed, EOFError, ConnectionError, OSError, TimeoutError,
+                json.JSONDecodeError) as err:
             LOG.info("Turtle %s disconnected: %s", rec.turtle_id if rec else "?", err)
         finally:
             if rec:
