@@ -51,16 +51,21 @@ local function snapshot()
  local front,fb=turtle.inspect()
  local below,bb=turtle.inspectDown()
  local d=state.data
- local storage={}
+ -- Storage unavailable is NOT the same as an observed empty chest.
+ local storage=nil
+ local storage_observed=false
  local chest=peripheral.wrap('bottom')
  if chest and type(chest.list)=='function' then
+  storage={}
+  storage_observed=true
   for _,item in pairs(chest.list()) do
    if type(item)=='table' and type(item.name)=='string' then
     storage[item.name]=(storage[item.name] or 0)+(item.count or 0)
    end
   end
  end
- return {inventory=inv,storage=storage,fuel=turtle.getFuelLevel(),
+ return {inventory=inv,storage=storage,storage_observed=storage_observed,
+  fuel=turtle.getFuelLevel(),
   pose=d.pose,generation=d.generation,
   front=front and fb.name or nil,bottom=below and bb.name or nil,
   processing=d.processing~=nil,manufacturing=d.manufacture~=nil,
