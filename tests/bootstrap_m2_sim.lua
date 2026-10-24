@@ -5,6 +5,7 @@ package.path='tg/?.lua;'..package.path
 local slots={}
 local sel=1
 local d={pose={x=0,y=0,z=0,dir=0},moves=0,children=0}
+local physical={x=0,y=0,z=0,dir=0}
 local world={chest=false,furnace=false}
 local trees={['0:1']=4,['4:0']=4}
 local cut={}
@@ -16,8 +17,8 @@ local moves=0
 local function key(x,z)return x..':'..z end
 local dirs={{0,1},{1,0},{0,-1},{-1,0}}
 local function front()
- local v=dirs[d.pose.dir+1]
- return d.pose.x+v[1],d.pose.z+v[2]
+ local v=dirs[physical.dir+1]
+ return physical.x+v[1],physical.z+v[2]
 end
 local function item(i)return slots[i]end
 local function add(name,n)
@@ -51,24 +52,24 @@ local function spend(name,n)
 end
 local function blockFront()
  local x,z=front()
- if world.furnace and d.pose.x==0 and d.pose.z==0 and d.pose.dir==0 then
+ if world.furnace and physical.x==0 and physical.z==0 and physical.dir==0 then
   return 'minecraft:furnace'
  end
- if d.pose.y>=0 and trees[key(x,z)] and d.pose.y<trees[key(x,z)]
-    and not cut[key(x,z)..':'..d.pose.y] then
+ if physical.y>=0 and trees[key(x,z)] and physical.y<trees[key(x,z)]
+    and not cut[key(x,z)..':'..physical.y] then
   return 'minecraft:oak_log'
  end
  return nil
 end
 local function below()
- if d.pose.x==0 and d.pose.z==0 and d.pose.y==0 and world.chest then
+ if physical.x==0 and physical.z==0 and physical.y==0 and world.chest then
   return 'minecraft:chest'
  end
- if d.pose.y==0 and sand[key(d.pose.x,d.pose.z)] then return 'minecraft:sand' end
- if d.pose.x==0 and d.pose.z==2 and d.pose.y<=0 and d.pose.y>-17 then
+ if physical.y==0 and sand[key(physical.x,physical.z)] then return 'minecraft:sand' end
+ if physical.x==0 and physical.z==2 and physical.y<=0 and physical.y>-17 then
   return 'minecraft:stone'
  end
- if d.pose.y==0 then return 'minecraft:grass_block' end
+ if physical.y==0 then return 'minecraft:grass_block' end
  return nil
 end
 turtle={
@@ -87,46 +88,46 @@ turtle={
   return n~=nil,n and {name=n} or nil
  end,
  inspectUp=function()
-  local n=(trees[key(d.pose.x,d.pose.z)] and d.pose.y+1<trees[key(d.pose.x,d.pose.z)]
-    and not cut[key(d.pose.x,d.pose.z)..':'..(d.pose.y+1)])
+  local n=(trees[key(physical.x,physical.z)] and physical.y+1<trees[key(physical.x,physical.z)]
+    and not cut[key(physical.x,physical.z)..':'..(physical.y+1)])
       and 'minecraft:oak_log' or nil
   return n~=nil,n and {name=n} or nil
  end,
  detect=function()return blockFront()~=nil end,
  forward=function()
   if blockFront() then return false,'blocked' end
-  local x,z=front();d.pose.x=x;d.pose.z=z;moves=moves+1
+  local x,z=front();physical.x=x;physical.z=z;moves=moves+1
   return true
  end,
  back=function()
-  local v=dirs[d.pose.dir+1]
-  d.pose.x=d.pose.x-v[1];d.pose.z=d.pose.z-v[2];moves=moves+1
+  local v=dirs[physical.dir+1]
+  physical.x=physical.x-v[1];physical.z=physical.z-v[2];moves=moves+1
   return true
  end,
- up=function()d.pose.y=d.pose.y+1;moves=moves+1;return true end,
- down=function()d.pose.y=d.pose.y-1;moves=moves+1;return true end,
- turnRight=function()d.pose.dir=(d.pose.dir+1)%4;return true end,
- turnLeft=function()d.pose.dir=(d.pose.dir+3)%4;return true end,
+ up=function()physical.y=physical.y+1;moves=moves+1;return true end,
+ down=function()physical.y=physical.y-1;moves=moves+1;return true end,
+ turnRight=function()physical.dir=(physical.dir+1)%4;return true end,
+ turnLeft=function()physical.dir=(physical.dir+3)%4;return true end,
  dig=function()
   local x,z=front()
   local n=trees[key(x,z)]
-  if n and d.pose.y<n then
+  if n and physical.y<n then
    -- Mark harvested log at the current height, while keeping upper logs.
-   cut[key(x,z)..':'..d.pose.y]=true
+   cut[key(x,z)..':'..physical.y]=true
    add('minecraft:oak_log',1)
    return true
   end
   return true
  end,
  digUp=function()
-  cut[key(d.pose.x,d.pose.z)..':'..(d.pose.y+1)]=true
+  cut[key(physical.x,physical.z)..':'..(physical.y+1)]=true
   add('minecraft:oak_log',1)
   return true
  end,
  digDown=function()
   local n=below()
   if n=='minecraft:sand' then
-   sand[key(d.pose.x,d.pose.z)]=nil
+   sand[key(physical.x,physical.z)]=nil
    add('minecraft:sand',1)
   elseif n=='minecraft:stone' then
    add('minecraft:cobblestone',1)
@@ -176,7 +177,7 @@ turtle={
  end,
  placeDown=function()
   assert(item(sel) and item(sel).name=='minecraft:chest')
-  assert(d.pose.x==0 and d.pose.z==0)
+  assert(physical.x==0 and physical.z==0)
   world.chest=true;spend('minecraft:chest',1);return true
  end,
  place=function()
@@ -215,7 +216,10 @@ assert(bootstrap.run('10:initial'))
 assert(d.bootstrap.complete==true)
 assert(world.chest and world.furnace)
 assert(count('minecraft:charcoal')>=1)
-assert(d.pose.x==0 and d.pose.y==0 and d.pose.z==0 and d.pose.dir==0)
+assert(physical.x==0 and physical.y==0 and physical.z==0 and physical.dir==0)
+assert(d.pose.x==physical.x and d.pose.y==physical.y and
+       d.pose.z==physical.z and d.pose.dir==physical.dir,
+       'Navigation tracked pose diverged from physical turtle')
 assert(stoneDepth>=8,'No cobblestone mining happened')
 assert(cut['0:1:0'] and cut['4:0:0'])
 print('PASS: two trees, sand, shallow stone, chest, furnace and charcoal')
