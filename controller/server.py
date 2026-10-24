@@ -21,7 +21,19 @@ class Host:
         self._last_waiting: dict[int, tuple[tuple[str, int], ...]] = {}
 
     def report_if_waiting(self, rec):
-        if rec.outstanding or birth_inputs_ready(rec.last_snapshot):
+        if rec.outstanding:
+            self._last_waiting.pop(rec.turtle_id, None)
+            return
+        view = rec.last_snapshot
+        if (view.get("bottom") in {"minecraft:chest", "minecraft:barrel"}
+                and view.get("storage_observed") is False):
+            signature = (("storage_unavailable", 1),)
+            if self._last_waiting.get(rec.turtle_id) != signature:
+                LOG.warning("Turtle %d: chest detected but inventory peripheral "
+                            "is unavailable; scheduling paused", rec.turtle_id)
+            self._last_waiting[rec.turtle_id] = signature
+            return
+        if birth_inputs_ready(view):
             self._last_waiting.pop(rec.turtle_id, None)
             return
         if next_job(rec):
