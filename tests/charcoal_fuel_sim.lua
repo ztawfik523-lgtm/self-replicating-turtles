@@ -109,7 +109,6 @@ assert(qty(turtleSlots,'minecraft:oak_planks')==0)
 assert(qty(chestSlots,'minecraft:charcoal')==0)
 assert(not next(furnaceSlots))
 assert(st.data.processing==nil)
-os.epoch=epoch
 print('PASS: actual furnace processor turns logs+planks into charcoal without coal')
 
 -- Existing coal must take precedence over wooden fuel, preserving planks.
@@ -124,3 +123,5 @@ assert(qty(turtleSlots,'minecraft:oak_planks')==3)
 assert(qty(turtleSlots,'minecraft:coal')==0)
 assert(not next(chestSlots) and not next(furnaceSlots))
 print('PASS: charcoal keeps planks when coal is already available')
+
+os.epoch=epoch
