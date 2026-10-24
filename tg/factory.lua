@@ -25,6 +25,21 @@ local function hasCrafting()
 end
 local function ensureCrafting()
   if hasCrafting() then return true end
+  -- CC:Tweaked versions around 1.20.1 can leave turtle.craft unregistered
+  -- when a crafting upgrade is inserted through the GUI after boot.
+  local leftUpgrade=turtle.getEquippedLeft and turtle.getEquippedLeft() or nil
+  local rightUpgrade=turtle.getEquippedRight and turtle.getEquippedRight() or nil
+  if (leftUpgrade and leftUpgrade.name=='minecraft:crafting_table') or
+     (rightUpgrade and rightUpgrade.name=='minecraft:crafting_table') then
+    assert(state.data,'Turtle state was not loaded before checking upgrades')
+    if not state.data.craftingRefreshAttempted then
+      state.data.craftingRefreshAttempted=true
+      state.save()
+      print('Crafting table is equipped, rebooting to activate turtle.craft')
+      os.reboot()
+    end
+    error('Crafting upgrade still inactive after reboot; equip using turtle.equipLeft or turtle.equipRight')
+  end
   local original=turtle.getSelectedSlot()
   local slot
   for i=1,16 do
@@ -34,8 +49,8 @@ local function ensureCrafting()
   if not slot then
     error('Crafting upgrade not active. Put one crafting table ITEM in inventory, or reboot if equipped through GUI')
   end
-  local left=turtle.getEquippedLeft and turtle.getEquippedLeft() or nil
-  local right=turtle.getEquippedRight and turtle.getEquippedRight() or nil
+  local left=leftUpgrade
+  local right=rightUpgrade
   -- When these introspection functions are not available on older CC builds,
   -- prefer left; the usual mining upgrade is on the right.
   local side
