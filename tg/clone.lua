@@ -42,7 +42,7 @@ function M.install(side)
   -- the offspring, so a booted child joins the same colony automatically.
   -- Legacy clones without a controller configuration retain legacy startup.
   if fs.exists('/tg/worker-config.dat') then
-    for _,rel in ipairs({'tg/worker.lua','tg/workshop.lua','tg/worker-entry.lua'}) do
+    for _,rel in ipairs({'tg/worker.lua','tg/workshop.lua','tg/bootstrap.lua','tg/worker-entry.lua'}) do
       local src='/'..rel
       assert(fs.exists(src),'Controller clone missing '..src)
       local dst=fs.combine(mount,rel)

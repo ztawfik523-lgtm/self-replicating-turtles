@@ -3,6 +3,8 @@
 -- After a full first-birth in-game acceptance run this can become the default.
 local argv={...}
 local url=argv[1]
+local BOOTSTRAP=argv[2]=='bootstrap'
+assert(not argv[2] or BOOTSTRAP,'Optional second argument must be bootstrap')
 assert(type(url)=='string' and
   (url:sub(1,5)=='ws://' or url:sub(1,6)=='wss://'),
   'Pass controller address: ws://HOST:8765')
@@ -20,7 +22,7 @@ local paths={
  'tg/nav.lua','tg/survey.lua','tg/clone.lua','tg/replicate.lua',
  'tg/probe.lua','tg/main.lua','tg/miner.lua','tg/factory.lua',
  'tg/process.lua','tg/station.lua','tg/worker.lua','tg/workshop.lua',
- 'tg/worker-entry.lua',
+ 'tg/bootstrap.lua','tg/worker-entry.lua',
 }
 
 local function folder(path)
@@ -59,6 +61,10 @@ local function recoverPrevious()
    local old=fs.combine(BACKUP,'tg/worker-config.dat')
    if fs.exists(current) then fs.delete(current) end
    if fs.exists(old) then fs.copy(old,current) end
+   local bootstrap='/tg/bootstrap-opt-in.dat'
+   local bootstrapOld=fs.combine(BACKUP,'tg/bootstrap-opt-in.dat')
+   if fs.exists(bootstrap) then fs.delete(bootstrap) end
+   if fs.exists(bootstrapOld) then fs.copy(bootstrapOld,bootstrap) end
   end
   fs.delete(BACKUP)
  end
@@ -83,7 +89,7 @@ local ok,err=pcall(function()
   'Fetched an unexpected Genesis version')
  local child=read(fs.combine(STAGE,'tg/clone.lua'))
  for _,name in ipairs({'tg/worker.lua','tg/workshop.lua',
-                       'tg/worker-entry.lua'}) do
+                       'tg/bootstrap.lua','tg/worker-entry.lua'}) do
   assert(child:find(name,1,true),'Child cloning manifest missing '..name)
  end
 end)
@@ -105,6 +111,9 @@ for _,path in ipairs(paths) do
  end
 end
 local oldConfig=fs.exists('/tg/worker-config.dat')
+local oldBootstrap=fs.exists('/tg/bootstrap-opt-in.dat')
+if oldBootstrap then fs.copy('/tg/bootstrap-opt-in.dat',
+   fs.combine(BACKUP,'tg/bootstrap-opt-in.dat')) end
 if oldConfig then fs.copy('/tg/worker-config.dat',
                            fs.combine(BACKUP,'tg/worker-config.dat')) end
 -- The READY marker is committed only after every backup is complete.
@@ -121,6 +130,9 @@ local installed,installErr=pcall(function()
   fs.copy(source,target)
  end
  write('/tg/worker-config.dat',url)
+ -- Explicit M2 opt-in. Installing this runtime on an existing reproducing
+ -- colony must never send the parents on a new exploration mission.
+ if BOOTSTRAP then write('/tg/bootstrap-opt-in.dat','enabled') end
 end)
 if not installed then
  for _,path in ipairs(replaced) do
@@ -131,6 +143,10 @@ if not installed then
  if fs.exists('/tg/worker-config.dat') then fs.delete('/tg/worker-config.dat') end
  if oldConfig then
   fs.copy(fs.combine(BACKUP,'tg/worker-config.dat'),'/tg/worker-config.dat')
+ end
+ if fs.exists('/tg/bootstrap-opt-in.dat') then fs.delete('/tg/bootstrap-opt-in.dat') end
+ if oldBootstrap then
+  fs.copy(fs.combine(BACKUP,'tg/bootstrap-opt-in.dat'),'/tg/bootstrap-opt-in.dat')
  end
  cleanup()
  error('Install rolled back: '..tostring(installErr),0)

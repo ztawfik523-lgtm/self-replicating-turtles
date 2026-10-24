@@ -63,7 +63,7 @@ class Colony:
         return rec
 
     def queue(self, ident: int, action: str, args: dict[str, Any] | None = None) -> Job:
-        if action not in {"observe", "process", "produce", "birth", "collect", "station_pack"}:
+        if action not in {"observe", "process", "produce", "birth", "bootstrap", "collect", "station_pack"}:
             raise ValueError("Unsupported turtle task: " + action)
         rec = self.turtles[ident]
         if rec.outstanding:
@@ -210,7 +210,17 @@ def next_job(rec: TurtleRecord) -> tuple[str,dict[str,Any]] | None:
     New base building and gathering operations will extend this policy.
     """
     view = rec.last_snapshot
-    if rec.outstanding or any(view.get(k) for k in
+    if rec.outstanding:
+        return None
+    if view.get("bootstrap_enabled") and not view.get("bootstrap_done"):
+        if any(view.get(k) for k in ("processing","manufacturing","replication","station","birth")):
+            return None
+        key=json.dumps({"bootstrap_stage":view.get("bootstrap_stage"),
+                        "pose":view.get("pose"),"fuel":view.get("fuel")},sort_keys=True)
+        if rec.blocked.get("bootstrap") != key:
+            return "bootstrap", {"snapshot_key":key}
+        return None
+    if any(view.get(k) for k in
            ("processing", "manufacturing", "replication", "station", "birth")):
         return None
     items = count_items(view)

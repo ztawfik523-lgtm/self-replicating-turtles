@@ -56,7 +56,10 @@ local function snapshot()
   front=front and fb.name or nil,bottom=below and bb.name or nil,
   processing=d.processing~=nil,manufacturing=d.manufacture~=nil,
   replication=d.replication~=nil,station=d.station~=nil,
-  birth=d.birth~=nil,children=d.children or 0}
+  birth=d.birth~=nil,children=d.children or 0,
+  bootstrap_enabled=fs.exists('/tg/bootstrap-opt-in.dat'),
+  bootstrap_done=d.bootstrap and d.bootstrap.complete==true or false,
+  bootstrap_stage=d.bootstrap and d.bootstrap.stage or nil}
 end
 local function execute(job)
  local a=job.action
@@ -70,6 +73,10 @@ local function execute(job)
  end
  if a=='collect' then require('factory').collect();return snapshot() end
  if a=='station_pack' then require('station').pack();return snapshot() end
+ if a=='bootstrap' then
+  require('bootstrap').run(job.id)
+  return {base_established=true,snapshot=snapshot()}
+ end
  if a=='birth' then
   require('workshop').run(job.id)
   return {child_created=true,snapshot=snapshot()}
@@ -91,15 +98,22 @@ function M.handle(job)
   -- A failed birth is not complete: equipment/material corrections should
   -- retry the original ID, not manufacture a second child under a new ID.
   if previous.status=='done' then
-   if job.action~='birth' or (previous.result and previous.result.ok) then
+   if (job.action~='birth' and job.action~='bootstrap') or
+      (previous.result and previous.result.ok) then
     return previous.result
    end
-   if not state.data.birth then return previous.result end
-   print('Retrying paused birth '..job.id)
+   if job.action=='birth' and not state.data.birth then
+    return previous.result
+   end
+   if job.action=='bootstrap' and not state.data.bootstrap then
+    return previous.result
+   end
+   print('Retrying paused '..job.action..' '..job.id)
   end
   -- Birth is designed to resume from observed resources and lineage count.
   -- Never retry an arbitrary legacy manufacturing operation blindly.
-  if previous.status=='started' and job.action~='birth' then
+  if previous.status=='started' and job.action~='birth'
+      and job.action~='bootstrap' then
    return {type='result',id=job.id,ok=false,
       error='Interrupted operation requires physical reconciliation'}
   end
@@ -130,6 +144,17 @@ function M.run(url)
      interrupted.result and interrupted.result.ok==false) then
    print('Resuming unfinished first birth '..tostring(active.jobId))
    M.handle({id=active.jobId,action='birth',args=interrupted.args or {}})
+  end
+ end
+ -- An M2 bootstrap resumed after reboot must only proceed when the turtle
+ -- is at its saved home. The bootstrap routine checks this before movement.
+ local base=state.data.bootstrap
+ if base and not base.complete and base.jobId
+    and interrupted.id==base.jobId and interrupted.action=='bootstrap' then
+  if interrupted.status=='started' or
+     (interrupted.status=='done' and interrupted.result
+       and interrupted.result.ok==false) then
+   M.handle({id=base.jobId,action='bootstrap',args=interrupted.args or {}})
   end
  end
  while true do
