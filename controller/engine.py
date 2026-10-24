@@ -212,6 +212,12 @@ def next_job(rec: TurtleRecord) -> tuple[str,dict[str,Any]] | None:
     view = rec.last_snapshot
     if rec.outstanding:
         return None
+    # The chest exists physically, but its inventory cannot be observed.
+    # A transient peripheral failure must not launch jobs against unknown
+    # shared stock. Older workers without this field remain supported.
+    if (view.get("bottom") in {"minecraft:chest", "minecraft:barrel"}
+            and view.get("storage_observed") is False):
+        return None
     if view.get("bootstrap_enabled") and not view.get("bootstrap_done"):
         if any(view.get(k) for k in ("processing","manufacturing","replication","station","birth")):
             return None
