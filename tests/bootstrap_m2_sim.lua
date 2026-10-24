@@ -6,7 +6,7 @@ local slots={}
 local sel=1
 local d={pose={x=0,y=0,z=0,dir=0},moves=0,children=0}
 local physical={x=0,y=0,z=0,dir=0}
-local world={chest=false,furnace=false}
+local world={chest=false,furnace=false,worksiteSapling=false}
 local trees={['0:1']=4,['4:0']=4}
 local cut={}
 local sand={}
@@ -54,6 +54,13 @@ local function blockFront()
  local x,z=front()
  if world.furnace and physical.x==0 and physical.z==0 and physical.dir==0 then
   return 'minecraft:furnace'
+ end
+ if world.worksiteSapling and physical.x==0 and physical.z==0 and physical.dir==0 then
+  return 'minecraft:oak_sapling'
+ end
+ -- A raised sandbank occupies the forward cell, not only the floor below.
+ if physical.y==0 and x==1 and z==0 and sand['1:0'] then
+  return 'minecraft:sand'
  end
  if physical.y>=0 and trees[key(x,z)] and physical.y<trees[key(x,z)]
     and not cut[key(x,z)..':'..physical.y] then
@@ -115,6 +122,14 @@ turtle={
    -- Mark harvested log at the current height, while keeping upper logs.
    cut[key(x,z)..':'..physical.y]=true
    add('minecraft:oak_log',1)
+   if x==0 and z==1 and physical.y==0 then
+    add('minecraft:oak_sapling',1) -- possible stray forestry drop
+   end
+   return true
+  end
+  if physical.y==0 and x==1 and z==0 and sand['1:0'] then
+   sand['1:0']=nil
+   add('minecraft:sand',1)
    return true
   end
   return true
@@ -182,6 +197,11 @@ turtle={
   world.chest=true;spend('minecraft:chest',1);return true
  end,
  place=function()
+  if item(sel) and item(sel).name=='minecraft:oak_sapling' then
+   world.worksiteSapling=true
+   spend('minecraft:oak_sapling',1)
+   return true
+  end
   if item(sel) and item(sel).name=='minecraft:furnace' then
    world.furnace=true;spend('minecraft:furnace',1);return true
   end
@@ -273,6 +293,7 @@ assert(d.bootstrap.jobId=='10:initial')
 print('PASS: interrupted planks, chest item and furnace batch resume under original job')
 assert(d.bootstrap.complete==true)
 assert(world.chest and world.furnace)
+assert(not world.worksiteSapling,'Replanting must not occupy the furnace cell')
 assert(count('minecraft:charcoal')>=1)
 assert(physical.x==0 and physical.y==0 and physical.z==0 and physical.dir==0)
 assert(d.pose.x==physical.x and d.pose.y==physical.y and
