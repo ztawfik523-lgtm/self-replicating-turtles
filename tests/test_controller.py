@@ -217,3 +217,31 @@ def test_m2_blocked_job_only_retries_after_observed_change(tmp_path):
     assert next_job(rec) is None
     rec.last_snapshot["fuel"]=500
     assert next_job(rec)[0]=="bootstrap"
+
+def test_completed_opted_in_base_auto_replenishes_when_fuel_low(tmp_path):
+    db=Colony(tmp_path/"db.json");rec=db.register(hello())
+    rec.last_snapshot={"bootstrap_enabled":True,"bootstrap_done":True,
+        "storage_observed":True,"front":"minecraft:furnace",
+        "bottom":"minecraft:chest","pose":{"x":0,"y":0,"z":0,"dir":0},
+        "inventory":[{"name":"minecraft:charcoal","count":1}],
+        "storage":{"minecraft:sand":6,"minecraft:charcoal":1}}
+    task=next_job(rec)
+    assert task and task[0]=="fuel_cycle"
+    rec.last_snapshot["storage"]["minecraft:charcoal"]=3
+    assert next_job(rec) is None  # recovered reserve, no pointless work
+
+def test_fuel_cycle_never_runs_without_verified_base_or_during_smelt(tmp_path):
+    db=Colony(tmp_path/"db.json");rec=db.register(hello())
+    view={"bootstrap_enabled":True,"bootstrap_done":True,
+        "storage_observed":True,"front":"minecraft:furnace",
+        "bottom":"minecraft:chest","inventory":[],"storage":{}}
+    rec.last_snapshot=view
+    assert next_job(rec)[0]=="fuel_cycle"
+    view["processing"]=True
+    assert next_job(rec) is None
+    view["processing"]=False
+    view["storage_observed"]=False
+    assert next_job(rec) is None
+    view["storage_observed"]=True
+    view["front"]="computercraft:disk_drive"
+    assert next_job(rec) is None
