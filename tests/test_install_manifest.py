@@ -20,3 +20,13 @@ def test_installer_pin_matches_the_current_turtle_sources():
         current=(ROOT/path).read_bytes()
         pinned=subprocess.check_output(["git","show",f"{revision}:{path}"],cwd=ROOT)
         assert current==pinned, f"Installer would download stale {path}"
+
+def test_hotfix_patch_uses_matching_immutable_sources():
+    code=(ROOT/"controller/repair-crafting.lua").read_text(encoding="utf-8")
+    match=re.search(r"local REV='([a-f0-9]{40})'",code)
+    assert match, "One-command repair must use a pinned commit"
+    revision=match.group(1)
+    for path in ("tg/factory.lua","tg/workshop.lua","tg/worker.lua"):
+        actual=(ROOT/path).read_bytes()
+        pinned=subprocess.check_output(["git","show",f"{revision}:{path}"],cwd=ROOT)
+        assert actual==pinned, f"Repair would install outdated {path}"
