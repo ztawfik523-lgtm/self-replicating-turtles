@@ -9,7 +9,7 @@ import logging
 import os
 from pathlib import Path
 from websockets.asyncio.server import serve
-from .engine import Colony, shortages, next_job
+from .engine import Colony, shortages, next_job, starter_kit_missing, birth_inputs_ready
 
 LOG = logging.getLogger("genesis")
 
@@ -17,6 +17,26 @@ class Host:
     def __init__(self, state_path: str | Path):
         self.colony = Colony(state_path)
         self.connected: set[int] = set()
+        self._last_waiting: dict[int, tuple[tuple[str, int], ...]] = {}
+
+    def report_if_waiting(self, rec):
+        if rec.outstanding or birth_inputs_ready(rec.last_snapshot):
+            self._last_waiting.pop(rec.turtle_id, None)
+            return
+        if next_job(rec):
+            return
+        missing = starter_kit_missing(rec.last_snapshot)
+        signature = tuple(sorted(missing.items()))
+        if self._last_waiting.get(rec.turtle_id) == signature:
+            return
+        self._last_waiting[rec.turtle_id] = signature
+        if missing:
+            LOG.info("Turtle %d idle: standard first-birth kit missing %s",
+                     rec.turtle_id, ", ".join(
+                         f"{name} x{count}" for name, count in signature))
+        else:
+            LOG.info("Turtle %d idle: resources appear present; check physical "
+                     "workstation, existing jobs, and production state", rec.turtle_id)
 
     async def handle(self, websocket):
         rec = None
@@ -32,6 +52,7 @@ class Host:
             self.connected.add(rec.turtle_id)
             recovery = self.colony.reconcile_hello(rec, hello)
             LOG.info("Turtle %d connected, recovery=%s", rec.turtle_id, recovery)
+            self.report_if_waiting(rec)
             await websocket.send(json.dumps({"type": "welcome", "recovery": recovery,
                                              "shortages": shortages(rec.last_snapshot)}))
             while True:
@@ -47,6 +68,7 @@ class Host:
                 if msg.get("type") == "snapshot":
                     rec.last_snapshot = msg.get("snapshot") or {}
                     self.colony.save()
+                    self.report_if_waiting(rec)
                     await websocket.send(json.dumps({"type": "ack",
                                                      "shortages": shortages(rec.last_snapshot)}))
                 elif msg.get("type") == "result":
