@@ -186,3 +186,34 @@ async def test_abrupt_turtle_reboot_disconnects_cleanly(tmp_path, caplog):
                     await asyncio.sleep(0.01)
             await asyncio.wait_for(wait_for_removal(), timeout=1)
     assert "Turtle 7 disconnected" in caplog.text
+
+def test_m2_bootstrap_is_explicitly_opted_in(tmp_path):
+    db=Colony(tmp_path/"db.json"); rec=db.register(hello())
+    rec.last_snapshot={"inventory":[],"fuel":400,"bottom":"minecraft:grass_block",
+        "front":None,"bootstrap_enabled":False,"bootstrap_done":False}
+    assert next_job(rec) is None  # M1 parents never wander off automatically
+    rec.last_snapshot["bootstrap_enabled"]=True
+    job=next_job(rec)
+    assert job is not None and job[0]=="bootstrap"
+    assert "snapshot_key" in job[1]
+    db.queue(7,*job)
+    assert next_job(rec) is None  # no second task while working
+
+
+def test_m2_completed_base_never_restarts_wood_search(tmp_path):
+    db=Colony(tmp_path/"db.json"); rec=db.register(hello())
+    rec.last_snapshot={"inventory":[],"fuel":400,
+        "front":"minecraft:furnace","bottom":"minecraft:chest",
+        "bootstrap_enabled":True,"bootstrap_done":True}
+    assert next_job(rec) is None
+
+
+def test_m2_blocked_job_only_retries_after_observed_change(tmp_path):
+    db=Colony(tmp_path/"db.json"); rec=db.register(hello())
+    rec.last_snapshot={"inventory":[],"fuel":450,"pose":{"x":0,"y":0,"z":0,"dir":0},
+       "bootstrap_enabled":True,"bootstrap_done":False}
+    action,args=next_job(rec)
+    rec.blocked[action]=args["snapshot_key"]
+    assert next_job(rec) is None
+    rec.last_snapshot["fuel"]=500
+    assert next_job(rec)[0]=="bootstrap"
