@@ -6,9 +6,10 @@ local physical={x=0,y=0,z=0,dir=0}
 local d={pose={x=0,y=0,z=0,dir=0},moves=0,bootstrap={
  home={x=0,y=0,z=0,dir=0},stage='gather_first_wood'}}
 local saves,inject,interrupted=0,true,false
-local logs,sand,steps=0,0,0
+local logs,sand,steps,saplings=0,0,0,0
+local leafCut,replanted=false,false
 local cut={}
-local trees={['0:3']=4}
+local trees={['0:4']=4}
 local dirs={{0,1},{1,0},{0,-1},{-1,0}}
 local function key(x,z)return x..':'..z end
 local function front()
@@ -39,6 +40,7 @@ turtle={
  getItemDetail=function(i)
   if i==1 and logs>0 then return {name='minecraft:oak_log',count=logs} end
   if i==2 and sand>0 then return {name='minecraft:sand',count=sand} end
+  if i==3 and saplings>0 then return {name='minecraft:oak_sapling',count=saplings} end
   return nil
  end,
  getFuelLevel=function()return 2000-steps end,
@@ -47,7 +49,9 @@ turtle={
  inspect=function()
   local x,z=front()
   local n=nil
-  if x==0 and z==1 and physical.y==0 then n='minecraft:stone' end
+  if x==0 and z>=1 and z<=2 and physical.y==0 then n='minecraft:stone' end
+  if physical.x==0 and physical.z==4 and physical.y>=2
+    and x==1 and z==4 and not leafCut then n='minecraft:oak_leaves' end
   if trees[key(x,z)] and physical.y<trees[key(x,z)]
      and not cut[key(x,z)..':'..physical.y] then n='minecraft:oak_log' end
   return n~=nil,n and {name=n} or nil
@@ -68,12 +72,18 @@ turtle={
  end,
  detect=function()
   local x,z=front()
-  return (x==0 and z==1 and physical.y==0)
+  return (x==0 and z>=1 and z<=2 and physical.y==0)
+    or (physical.x==0 and physical.z==4 and physical.y>=2
+       and x==1 and z==4 and not leafCut)
    or (trees[key(x,z)] and physical.y<trees[key(x,z)]
      and not cut[key(x,z)..':'..physical.y]) or false
  end,
  dig=function()
   local x,z=front()
+  if physical.x==0 and physical.z==4 and physical.y>=2
+      and x==1 and z==4 and not leafCut then
+   leafCut=true;saplings=saplings+1;return true
+  end
   assert(trees[key(x,z)] and physical.y<trees[key(x,z)],
    'Explorer attempted to dig protected wall')
   cut[key(x,z)..':'..physical.y]=true
@@ -88,13 +98,20 @@ turtle={
  digDown=function() sand=sand+1;return true end,
  forward=function()
   local x,z=front()
-  if (x==0 and z==1 and physical.y==0)
+  if (x==0 and z>=1 and z<=2 and physical.y==0)
     or (trees[key(x,z)] and physical.y<trees[key(x,z)]
       and not cut[key(x,z)..':'..physical.y]) then
    return false,'occupied'
   end
   physical.x=x;physical.z=z;steps=steps+1
   return true
+ end,
+ place=function()
+  local x,z=front()
+  if x==0 and z==4 and saplings>0 then
+   saplings=saplings-1;replanted=true;return true
+  end
+  return false
  end,
  back=function()
   local v=dirs[physical.dir+1]
@@ -120,7 +137,9 @@ assert(steps>movementAtReboot)
 assert(not d.forageTrail,'Successful forage should clear all breadcrumbs')
 assert(physical.x==0 and physical.y==0 and physical.z==0 and physical.dir==0)
 assert(d.pose.x==0 and d.pose.y==0 and d.pose.z==0 and d.pose.dir==0)
-assert(not cut['0:1:0'],'Protected wall was destroyed')
+assert(not cut['0:1:0'] and not cut['0:2:0'],
+ 'Protected two-block-long wall was destroyed')
+assert(leafCut and replanted,'No sapling harvested and replanted')
 print('PASS: bypass wall, recover from reboot between movement commits, return home')
 
 local a,b=boot.searchTerrain('sand',1)
