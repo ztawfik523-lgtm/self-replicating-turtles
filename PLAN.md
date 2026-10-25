@@ -300,3 +300,18 @@ The controller still does **not** have autonomous ore prospecting for
 iron, redstone or diamond, large-scale underground navigation, or robust
 response to every kind of lava/water intrusion. Minecraft M2 acceptance
 is still pending; offline checks do not substitute for it.
+
+## M2 recurring lumber and first-child material reserve
+
+The opted-in controller now replenishes charcoal/movement fuel first and
+then can schedule a separate persistent `wood_cycle` job if fewer than
+14 same-species planks exist across the turtle and observed base chest.
+It gathers nearby logs using the obstacle-aware, restart-safe terrain
+navigator, crafts planks with the existing chest-backed factory helper,
+and returns surplus wood to the base chest.
+
+The task has a persistent job ID and can recover under that same ID when
+a run is interrupted. Storage capacity is preflighted before pulling the
+chest contents; completed work is persisted only after storage succeeds.
+This prepares one important subset of a future birth bill, **not** the
+iron/redstone/diamond acquisition needed for genuine full replication.
