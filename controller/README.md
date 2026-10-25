@@ -206,3 +206,20 @@ Minecraft. The following gaps were found and addressed offline:
 The first real M2 milestone remains one **complete**, player-visible run in
 suitable terrain, not dozens of tiny manual probes. No existing turtle is
 automatically switched to M2; that remains explicit opt-in.
+
+## Bounded obstacle navigation and reboot-safe return
+
+M2 foraging now makes limited side detours around one-block-wide obstacles
+without mining arbitrary structures, and returns using a journaled breadcrumb
+trail. The trail is persisted atomically with each successful move's local pose.
+If a turtle is restarted *between* successful actions, it can reverse the route
+to the original base location before resuming the job. If power failed during an
+uncertain physical action, the existing pending-action safety stop remains
+mandatory; the navigator never fabricates the outcome.
+
+Forage searches only traverse cells where the inspected ground is solid and
+non-liquid. Two-block detours and the four cardinal rays remain bounded;
+unsupported cliffs, wider obstacles, and all unobserved terrain are not
+considered solved. Offline simulation exercises the actual navigator and
+terrain search with a blocked first ray, a hidden tree, sand, and an injected
+reboot. This is not a Minecraft acceptance claim.
