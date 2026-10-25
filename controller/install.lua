@@ -13,7 +13,7 @@ assert(turtle and http and http.get,'Run inside a CC: Tweaked turtle with HTTP e
 
 local REPO='ztawfik523-lgtm/self-replicating-turtles'
 -- PINNED_REV is advanced only after automated integration tests pass.
-local PINNED_REV='1a2c7a6d6ec23decc99aab184d319d3b3189460f'
+local PINNED_REV='7345346e2462fb404515fe37c54db3c9cddabc51'
 local VERSION='0.5.0-dev'
 local STAGE='/tg-controller-download'
 local BACKUP='/tg-controller-backup'
