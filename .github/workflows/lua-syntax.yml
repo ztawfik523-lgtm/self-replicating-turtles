@@ -34,6 +34,8 @@ jobs:
         run: lua5.2 tests/fuel_refuel_sim.lua
       - name: Test M2 safe abort for missing trees and fuel
         run: lua5.2 tests/bootstrap_m2_safety.lua
+      - name: Simulate obstacle bypass and post-reboot breadcrumb return
+        run: lua5.2 tests/forage_navigation_sim.lua
       - name: Verify M2 furnace restart and inventory-commit safety
         run: lua5.2 tests/fuel_cycle_recovery_sim.lua
       - name: Verify runtime installers use the exact source revision

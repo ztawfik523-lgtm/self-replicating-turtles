@@ -99,7 +99,21 @@ local function mineLogColumn()
   assert(nav.up(),'Failed to rise inside tree trunk')
   ascended=ascended+1
  end
- for _=1,ascended do assert(nav.down(),'Cannot descend harvested trunk') end
+ -- Opportunistically gather saplings from a few leaf faces around the
+ -- original tree canopy. Sapling drops are not guaranteed.
+ local leaves=first:gsub('_log$','_leaves')
+ local layers=math.min(3,ascended+1)
+ for layer=1,layers do
+  for _=1,4 do
+   if block('front')==leaves then turtle.dig() end
+   assert(nav.right(),'Unable to inspect surrounding tree foliage')
+  end
+  if layer<layers then
+   assert(nav.down(),'Cannot descend under tree canopy')
+   ascended=ascended-1
+  end
+ end
+ for _=1,ascended do assert(nav.down(),'Cannot descend harvested tree') end
  assert(nav.back(),'Cannot leave harvested tree location')
  print('Base: harvested logs in inventory: '..tostring(count(first)))
  -- If a sapling was collected during harvesting, replace the trunk.
@@ -113,56 +127,143 @@ local function mineLogColumn()
  turtle.select(old)
  return true
 end
+-- The explorer never destroys unknown blocks and never crosses a knowingly
+-- unsupported ledge. Successful movement is journaled by nav.lua along with
+-- the tracked pose. Rewind works after ordinary reboots; an interrupted step
+-- leaves state.pending set and is intentionally NOT auto-reconciled.
+local reverse={forward='back',back='forward',up='down',down='up'}
+local function face(dir)
+ for _=1,4 do
+  if state.data.pose.dir==dir then return end
+  assert(nav.right(),'Failed to restore exploration heading')
+ end
+ error('Could not face planned exploration direction')
+end
+local function rewindTrail(depth)
+ local trail=assert(state.data.forageTrail,'No saved exploration route')
+ depth=depth or 0
+ assert(depth>=0 and depth<=#trail.moves,'Invalid return depth')
+ while #trail.moves>depth do
+  local step=trail.moves[#trail.moves]
+  assert(step and reverse[step.action],'Malformed exploration breadcrumb')
+  face(step.dir)
+  assert(fuel.ensure(#trail.moves+RESERVE+4),
+   'Not enough fuel to safely retrace exploration breadcrumbs')
+  local before=#trail.moves
+  local ok,why=nav[reverse[step.action]]()
+  assert(ok,'Cannot retrace '..step.action..' step: '..tostring(why))
+  assert(#trail.moves==before-1,
+   'Breadcrumb stack did not shrink after returning')
+ end
+end
+local function recoverExploration()
+ local trail=state.data.forageTrail
+ if not trail then return end
+ assert(trail.origin and type(trail.moves)=='table',
+  'Exploration recovery data incomplete; refusing unsafe navigation')
+ print('Base: recovering '..#trail.moves..' saved exploration steps')
+ rewindTrail(0)
+ face(trail.origin.dir)
+ assert(samePose(state.data.pose,trail.origin),
+  'Saved explorer route did not return to its original home')
+ state.data.forageTrail=nil
+ state.save()
+end
 local function scan(resource,needed)
  local function have()
   if resource=='wood' then
    local _,n=matching('log');return n
   elseif resource=='sand' then return count('minecraft:sand') end
  end
+ assert(resource=='wood' or resource=='sand','Unsupported forage target')
+ atHome()
+ assert(not state.data.forageTrail,'An old exploration route must be recovered first')
+ local home=state.data.bootstrap.home
+ state.data.forageTrail={origin={x=home.x,y=home.y,z=home.z,dir=home.dir},moves={}}
+ state.save()
+ local trail=state.data.forageTrail
  local before=have()
- for heading=1,4 do
-  local dist=0
-  for _=1,SEARCH do
-   if have()>=needed then break end
-   -- Refuel from collected charcoal when necessary, but never cross the
-   -- point from which the turtle cannot make the bounded return trip.
-   if not fuel.ensure(2*(dist+1)+TREE_HEIGHT*2+RESERVE) then break end
-   local current=block('front')
-   if resource=='wood' and current
-       and current:match('^minecraft:[%a_]+_log$') then
-    mineLogColumn()
-   elseif resource=='sand' and current=='minecraft:sand' then
-    -- Collect raised sandbanks as well as sand underneath survey paths.
-    -- Falling-sand chains are bounded and unrelated blocks stay protected.
-    for _=1,6 do
-     if have()>=needed or block('front')~='minecraft:sand' then break end
-     if not turtle.dig() then break end
-    end
-   end
-   if not safeFront() then break end
-   local ok=nav.forward()
-   if not ok then break end
-   dist=dist+1
-   if resource=='sand' then
-    local down=block('down')
-    if down=='minecraft:sand' then
-     turtle.digDown()
-    end
+ -- Movement budget includes retracing every successful outbound step and
+ -- the reserved fuel needed to ascend/descend a harvested tree.
+ local function walk()
+  if have()>=needed then return false end
+  if not fuel.ensure(2*(#trail.moves+5)+TREE_HEIGHT*2+RESERVE) then
+   return false
+  end
+  local ahead=block('front')
+  if resource=='wood' and ahead
+      and ahead:match('^minecraft:[%a_]+_log$') then
+   mineLogColumn()
+  elseif resource=='sand' and ahead=='minecraft:sand' then
+   for _=1,6 do
+    if have()>=needed or block('front')~='minecraft:sand' then break end
+    if not turtle.dig() then break end
    end
   end
-  for _=1,dist do assert(nav.back(),'Return path to base is blocked') end
-  assert(nav.right(),'Cannot change survey heading')
-  local p,h=state.data.pose,state.data.bootstrap.home
-  assert(p.x==h.x and p.y==h.y and p.z==h.z,
-   'Survey failed to return to the base location')
+  if not safeFront() then return false end
+  local depth=#trail.moves
+  local ok=nav.forward()
+  if not ok then return false end
+  -- The target may have been an exposed cliff edge or a fluid surface.
+  -- Retreat immediately; never continue further into unsupported terrain.
+  local ground=block('down')
+  if not ground or ground=='minecraft:lava' or ground=='minecraft:water' then
+   rewindTrail(depth)
+   return false
+  end
+  if resource=='sand' and ground=='minecraft:sand' and have()<needed then
+   assert(turtle.digDown(),'Could not gather sand below explored path')
+  end
+  return true
+ end
+ local function detour(heading,dist)
+  -- Test either side for a path around a narrow (up to six-block-long)
+  -- obstruction. Never tunnel through the protected original front blocks.
+  local maxAdvance=math.min(6,SEARCH-dist)
+  if maxAdvance<1 then return nil end
+  local startDepth=#trail.moves
+  for _,side in ipairs({(heading+1)%4,(heading+3)%4}) do
+   face(side)
+   if walk() then
+    face(heading)
+    for advanced=1,maxAdvance do
+     if not walk() then break end
+     face((side+2)%4)
+     if walk() then
+      face(heading)
+      return advanced
+     end
+     face(heading)
+    end
+   end
+   rewindTrail(startDepth)
+   face(heading)
+  end
+  return nil
+ end
+ -- Survey four compass rays, bypassing short obstructions whenever
+ -- possible. Every side excursion returns to the original ray before the
+ -- next forward step; the full physical route is retraced from breadcrumbs.
+ for i=0,3 do
+  local heading=(home.dir+i)%4
+  face(heading)
+  local dist=0
+  while dist<SEARCH and have()<needed do
+   if walk() then
+    dist=dist+1
+   else
+    local advanced=detour(heading,dist)
+    if not advanced then break end
+    dist=dist+advanced
+   end
+  end
+  rewindTrail(0)
+  face(home.dir)
+  assert(samePose(state.data.pose,home),'Explorer did not return to base')
   if have()>=needed then break end
  end
- -- Restore the base heading even if the search found enough material on
- -- its first or second ray. Returning only to (x,y,z) is insufficient.
- local original=state.data.bootstrap.home.dir
- while state.data.pose.dir~=original do
-  assert(nav.right(),'Cannot restore base facing')
- end
+ state.data.forageTrail=nil
+ state.save()
  atHome()
  return have()-before,have()
 end
@@ -315,6 +416,13 @@ local function deposit()
  end
  turtle.select(old)
 end
+-- Also usable by future maintenance jobs. Testing this public primitive exercises
+-- the REAL navigator, trail journal and resource scanner together.
+function M.searchTerrain(resource,needed)
+ state.assertSafe()
+ recoverExploration()
+ return scan(resource,needed)
+end
 function M.run(jobId)
  state.assertSafe()
  local current=state.data.bootstrap
@@ -334,6 +442,9 @@ function M.run(jobId)
   assert(not current.jobId or current.jobId==jobId,
     'Another base job is already in progress')
  end
+ -- A normal reboot between movements is recoverable using saved steps.
+ -- state.assertSafe still refuses any interrupted / physically ambiguous move.
+ recoverExploration()
  atHome()
  if block('down')~='minecraft:chest' then
   -- An interrupted conversion may already have yielded planks or a chest.
@@ -418,6 +529,7 @@ function M.fuelCycle(jobId)
  assert(home.complete,'Fuel maintenance requires a completed base')
  assert(jobId and type(jobId)=='string','Fuel job ID required')
  if state.data.lastFuelJob==jobId then return true end
+ recoverExploration()
  if state.data.fuelCycle then
   assert(state.data.fuelCycle.jobId==jobId,
    'Finish the interrupted fuel cycle before accepting another job')
