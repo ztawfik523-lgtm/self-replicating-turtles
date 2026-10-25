@@ -315,3 +315,18 @@ a run is interrupted. Storage capacity is preflighted before pulling the
 chest contents; completed work is persisted only after storage succeeds.
 This prepares one important subset of a future birth bill, **not** the
 iron/redstone/diamond acquisition needed for genuine full replication.
+
+## M2 base stocks: repeatable sand and stone
+
+A completed opted-in worksite now maintains basic inventory in priority
+order: movement fuel and charcoal, then same-wood plank reserves, then
+six raw sand plus fourteen cobblestone-or-stone units. The controller uses
+observed turtle and chest totals and persists the same `material_cycle`
+job ID across interruptions. The Lua worker gathers sand and searches for
+additional shallow stone through safe, tracked and capped shafts; a failed
+resource search pauses without fabricating inventory.
+
+The shallower shaft scout limits soft-soil probing by cardinal search sector
+so one unproductive plain does not exhaust every mining candidate. Stone
+scouting is still bounded and is **not** deep ore prospecting. No claims
+are made that terrain everywhere contains accessible natural sand or stone.
