@@ -247,3 +247,17 @@ existing safe 3x3 factory helper to convert one log at a time into four
 matching planks, and deposits excess materials. Interrupted jobs retain
 their controller IDs so a reconnect does not create duplicate harvests.
 The controller still never treats invisible chest contents as zero.
+
+## Automatic sand and cobblestone stock
+
+Once the first base and wood reserves are complete, the controller may
+request `material_cycle` to maintain six raw sand and a combined fourteen
+stone/cobblestone reserve. Each operation uses the persistent M2 route stack,
+checks storage capacity before moving stacked items, and confirms deposits
+before committing completion. Sand and stone are mined from observed blocks,
+not silently counted from absent peripherals. One soft-soil shaft per compass
+sector is attempted before preferring other candidate terrain.
+
+This prepares the basic non-ore supply chain, not the remaining independent
+iron, diamond or redstone acquisition. A complete Minecraft acceptance run
+remains the proper integration gate, with no intermediate player micro-tests.
