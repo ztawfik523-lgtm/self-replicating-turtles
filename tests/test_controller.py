@@ -377,7 +377,7 @@ def test_completed_base_replenishes_same_species_planks(tmp_path):
     job=next_job(rec)
     assert job and job[0]=="wood_cycle"
     rec.last_snapshot["storage"]["minecraft:oak_planks"]=16
-    assert next_job(rec) is None
+    assert next_job(rec)[0]=="material_cycle"  # construction stone still missing
     rec.last_snapshot["storage"]["minecraft:oak_planks"]=8
     rec.last_snapshot["fuel"]=70
     assert next_job(rec)[0]=="fuel_cycle"
@@ -399,4 +399,38 @@ def test_wood_cycle_pause_resumes_same_id_after_stock_change(tmp_path):
     assert not db.record_snapshot(7,dict(view))
     new=dict(view,storage={"minecraft:oak_planks":10})
     assert db.record_snapshot(7,new)
+    assert rec.outstanding.id==job.id and rec.outstanding.state=="queued"
+
+def test_m2_material_reserve_replenishment(tmp_path):
+    db=Colony(tmp_path/"sand_stone.json");rec=db.register(hello())
+    view={"bootstrap_enabled":True,"bootstrap_done":True,"storage_observed":True,
+          "front":"minecraft:furnace","bottom":"minecraft:chest",
+          "fuel":350,"inventory":[{"name":"minecraft:charcoal","count":4}],
+          "storage":{"minecraft:oak_planks":16,"minecraft:sand":4,
+                     "minecraft:cobblestone":9}}
+    rec.last_snapshot=view
+    assert next_job(rec)[0]=="material_cycle"
+    view["storage"]["minecraft:sand"]=6
+    view["storage"]["minecraft:cobblestone"]=14
+    assert next_job(rec) is None
+    view["storage"]["minecraft:cobblestone"]=4
+    view["storage"]["minecraft:stone"]=10
+    assert next_job(rec) is None  # existing smelted stone counts toward bill
+
+def test_material_cycle_failed_job_retains_original_id(tmp_path):
+    db=Colony(tmp_path/"mineral_retry.json");rec=db.register(hello())
+    view={"bootstrap_enabled":True,"bootstrap_done":True,"storage_observed":True,
+          "front":"minecraft:furnace","bottom":"minecraft:chest","fuel":330,
+          "inventory":[{"name":"minecraft:coal","count":6}],
+          "storage":{"minecraft:oak_planks":16,"minecraft:sand":0,
+                     "minecraft:cobblestone":0}}
+    rec.last_snapshot=view
+    action,args=next_job(rec); assert action=="material_cycle"
+    job=db.queue(7,action,args);db.sent(7,job.id)
+    assert db.complete(7,job.id,{"ok":False,"error":"No sand",
+                                 "data":{"snapshot":view}})
+    assert rec.outstanding and rec.outstanding.state=="paused"
+    assert not db.record_snapshot(7,dict(view))
+    improved=dict(view,storage=dict(view["storage"],**{"minecraft:sand":3}))
+    assert db.record_snapshot(7,improved)
     assert rec.outstanding.id==job.id and rec.outstanding.state=="queued"
