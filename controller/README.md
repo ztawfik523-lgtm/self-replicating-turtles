@@ -158,3 +158,23 @@ Offline tests now cover draining the original output, a second harvest,
 storage retention, same-job replay protection, and controller scheduling.
 No indefinite sapling supply has been proved; the process requires
 reachable natural trees until sapling farming is implemented.
+
+## Reliability audit: staging chest and fuel-job completion
+
+A repeated fuel job treats an unfinished furnace batch as a separate
+transaction: its `tg/process.lua` state and staging chest are reconciled
+**before** retrieving general-purpose chest contents. The turtle checks that
+its empty slots can conservatively hold the occupied chest slots *before*
+starting inventory transfer. If the chest contains more stacks than the turtle
+can accommodate, the job pauses without partially emptying storage.
+
+The `fuel_cycle` ID is recorded as complete **only after** surplus inventory
+was deposited successfully. A full or unavailable chest leaves the same job ID
+pending, rather than falsely reporting a successful fuel run. An offline mock
+explicitly simulates a furnace power cut, a failed final deposit, replay of the
+same job ID, and an over-capacity chest. These are safeguards, not proof of
+unattended survival in every Minecraft environment.
+
+**Still unsupported:** guaranteed movement reconciliation after a power loss
+mid-step, general obstacle bypass, arbitrary terrain and renewable forestry.
+No extra player micro-tests are requested for these incomplete features.
