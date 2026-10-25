@@ -53,16 +53,24 @@ class Host:
 
     async def handle(self, websocket):
         rec = None
+        owns_connection = False
         try:
             hello = json.loads(await asyncio.wait_for(websocket.recv(), timeout=15))
-            if hello.get("type") != "hello":
+            if not isinstance(hello, dict) or hello.get("type") != "hello":
                 await websocket.close(code=1008, reason="Expected hello")
                 return
-            rec = self.colony.register(hello)
-            if rec.turtle_id in self.connected:
+            # Reject a second live connection BEFORE register() can overwrite
+            # the genuine turtle's generation/snapshot on disk.
+            ident = hello.get("id")
+            if type(ident) is not int or ident < 0:
+                await websocket.close(code=1008, reason="Invalid turtle ID")
+                return
+            if ident in self.connected:
                 await websocket.close(code=1008, reason="Duplicate turtle ID")
                 return
-            self.connected.add(rec.turtle_id)
+            self.connected.add(ident)
+            owns_connection = True
+            rec = self.colony.register(hello)
             recovery = self.colony.reconcile_hello(rec, hello)
             LOG.info("Turtle %d connected, recovery=%s", rec.turtle_id, recovery)
             self.report_if_waiting(rec)
@@ -105,8 +113,9 @@ class Host:
                 json.JSONDecodeError) as err:
             LOG.info("Turtle %s disconnected: %s", rec.turtle_id if rec else "?", err)
         finally:
-            if rec:
-                self.connected.discard(rec.turtle_id)
+            # A rejected duplicate is NOT the owner of the live connection.
+            if owns_connection:
+                self.connected.discard(ident)
 
 async def main():
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(message)s")

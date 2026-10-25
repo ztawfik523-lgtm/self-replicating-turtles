@@ -260,3 +260,45 @@ def test_inaccessible_chest_defers_legacy_smelt_and_logs_warning(tmp_path, caplo
     rec.last_snapshot["storage_observed"]=True
     rec.last_snapshot["storage"]={}
     assert next_job(rec)[0]=="process"
+
+@pytest.mark.asyncio
+async def test_duplicate_hello_cannot_overwrite_or_unlock_live_turtle(tmp_path):
+    host=Host(tmp_path/"registry.json")
+    original={"type":"hello","id":7,"generation":1,
+              "snapshot":{"fuel":250,"inventory":[{"name":"minecraft:diamond","count":3}]},
+              "journal":{}}
+    bogus={"type":"hello","id":7,"generation":999,
+           "snapshot":{"fuel":0,"inventory":[]},"journal":{}}
+    async with serve(host.handle,"127.0.0.1",0) as server:
+        port=server.sockets[0].getsockname()[1]
+        async with connect(f"ws://127.0.0.1:{port}") as first:
+            await first.send(json.dumps(original))
+            assert json.loads(await first.recv())["type"]=="welcome"
+            assert host.connected=={7}
+            for _ in range(2):
+                async with connect(f"ws://127.0.0.1:{port}") as duplicate:
+                    await duplicate.send(json.dumps(bogus))
+                    with pytest.raises(Exception):
+                        await duplicate.recv()
+                await asyncio.sleep(0.02)
+                assert host.connected=={7}
+                assert host.colony.turtles[7].generation==1
+                assert host.colony.turtles[7].last_snapshot["fuel"]==250
+            await first.send(json.dumps({"type":"ping"}))
+            assert json.loads(await first.recv())["type"]=="pong"
+    assert host.connected==set()
+    persisted=Colony(tmp_path/"registry.json")
+    assert persisted.turtles[7].generation==1
+
+@pytest.mark.asyncio
+async def test_invalid_id_does_not_mutate_registry_or_connection_set(tmp_path):
+    host=Host(tmp_path/"registry.json")
+    async with serve(host.handle,"127.0.0.1",0) as server:
+        port=server.sockets[0].getsockname()[1]
+        async with connect(f"ws://127.0.0.1:{port}") as ws:
+            await ws.send(json.dumps({"type":"hello","id":True,
+                                      "snapshot":{"fuel":999}}))
+            with pytest.raises(Exception):
+                await ws.recv()
+    assert not host.colony.turtles
+    assert not host.connected
