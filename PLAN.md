@@ -234,3 +234,27 @@ reproduction are separate unmet objectives. Existing parent/child computers
 
 **Next code-first focus:** strengthen tree management, resource acquisition
 and path planning without expanding player testing frequency.
+
+### Paused-job controller recovery (2026-10-25 follow-up)
+
+The controller previously removed a failed bootstrap/birth/fuel-cycle job,
+then treated changed inventory or fuel as justification to create a **new
+job ID**. This conflicted with the turtle's persisted partial job ID
+and could strand a partly built base. Now:
+
+- Physical task errors include the turtle's fresh observed snapshot.
+- These three multi-step jobs are retained as `paused` with their original ID.
+- Unchanged periodic snapshots do not retry the job or consume more fuel.
+- A changed inventory, observed stock, worksite, or movement-fuel level permits
+  the same ID to be re-queued. The turtle handles this via its original
+  persistent state; no new child or base job is invented.
+- Reboot replays only an actually **interrupted** (`started`) job. A completed
+  failure (`done` with `ok=false`) waits for controller reconciliation.
+- Non-resumable legacy tasks remain subject to the old explicit error handling.
+
+Python unit tests exercise pause, persistence, reconnect and same-ID resume;
+Lua simulations exercise both failed preflight and reboot-without-change.
+
+**Known limitation:** autonomous recovery after a movement logged as
+`pending` at a hard crash is still unresolved without a reliable external
+position reference. The turtle correctly refuses to invent its coordinates.
