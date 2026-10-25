@@ -277,3 +277,7 @@ position reference. The turtle correctly refuses to invent its coordinates.
   GPS-based uncertain-step recovery, or a permanent renewable tree farm.
 - One Minecraft end-to-end check remains the eventual M2 acceptance gate;
   no per-commit user tests.
+
+- Side bypasses may run for six blocks before rejoining the original ray; otherwise the robot safely retraces to base.
+
+- Canopy harvesting inspects up to three nearby leaf layers, taking only matching vanilla leaves and opportunistically replanting any resulting saplings away from the reserved furnace cell. Leaf drops and tree growth are probabilistic; unattended perpetual wood remains unproven.
