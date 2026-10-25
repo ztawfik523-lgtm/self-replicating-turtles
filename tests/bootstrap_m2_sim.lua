@@ -252,6 +252,12 @@ package.loaded.factory={
  end,
  craftStep=function(label,pattern,out)
   assert(world.chest)
+  if label=='reserve_planks' then
+   assert(pattern[1]=='minecraft:oak_log')
+   spend('minecraft:oak_log',1)
+   add(out,4)
+   return
+  end
   assert(label=='bootstrap_furnace')
   spend('minecraft:cobblestone',8)
   add(out,1)
@@ -392,3 +398,16 @@ assert(count('minecraft:charcoal')==beforeRefuel-1,
  'Low-fuel turtle did not consume exactly one stocked charcoal')
 assert(d.lastFuelJob=='10:renewal:2')
 print('PASS: established base powers its own movement from saved charcoal')
+
+-- Reserve a same-wood 14-plank stock for future manufacturing. The worker
+-- must replenish from actual trees and not consume any stored sand.
+trees['0:-4']=5
+assert(bootstrap.woodCycle('10:lumber:1'))
+assert(d.lastWoodJob=='10:lumber:1' and d.woodCycle==nil)
+local planks=stored['minecraft:oak_planks'] or 0
+assert(planks>=14,'No usable 14-plank single-wood reserve')
+assert(stored['minecraft:sand']==6,'Lumber maintenance lost saved sand')
+assert(bootstrap.woodCycle('10:lumber:1'))
+assert((stored['minecraft:oak_planks'] or 0)==planks,
+ 'Same wood-cycle ID consumed extra trees or planks')
+print('PASS: established base keeps a usable lumber reserve for later offspring')
