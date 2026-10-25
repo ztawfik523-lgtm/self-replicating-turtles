@@ -114,3 +114,20 @@ assert(two.ok and checks==2)
 assert(w.handle(preflight).ok and checks==2,
  'Completed job ID must never execute a third time')
 print('PASS: failed preflight recovers same job ID after material correction')
+
+-- A failed M2 survey must remain paused across reboot. Only the controller
+-- may retry its ORIGINAL ID after a relevant new observation.
+local autoRuns=0
+package.loaded.bootstrap={run=function()autoRuns=autoRuns+1;return true end}
+package.loaded.state.data.birth=nil
+package.loaded.state.data.bootstrap={jobId='7:6',stage='gather_sand',complete=false}
+_G.saved={id='7:6',status='done',action='bootstrap',
+          result={id='7:6',ok=false,error='No nearby sand'},args={}}
+files['/tg/worker-job.dat']='state'
+files['/tg/worker-config.dat']='ws://127.0.0.1:8765'
+http={websocket=function()return nil,'controller offline' end}
+sleep=function()error('stop mock worker loop')end
+local runOk,runError=pcall(w.run)
+assert(not runOk and tostring(runError):find('stop mock worker loop'))
+assert(autoRuns==0,'Failed job must not resurvey same terrain after reboot')
+print('PASS: failed M2 jobs remain paused across restart')
