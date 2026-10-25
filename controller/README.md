@@ -236,3 +236,14 @@ the top soil or caps the excavation with surplus cobblestone, retaining the
 eight-cobblestone furnace bill. Attempts and depths are bounded and rejected
 sites are left alone within the same survey. Real-world lava intrusion,
 underground cave exploration and ore selection still require more work.
+
+## Lumber reserve control loop
+
+An opt-in completed M2 base with at least three coal/charcoal pieces and
+adequate movement fuel can receive `wood_cycle` automatically whenever
+its visible combined stock has fewer than 14 planks of one species.
+The turtle physically retrieves stored goods, gathers logs, uses the
+existing safe 3x3 factory helper to convert one log at a time into four
+matching planks, and deposits excess materials. Interrupted jobs retain
+their controller IDs so a reconnect does not create duplicate harvests.
+The controller still never treats invisible chest contents as zero.

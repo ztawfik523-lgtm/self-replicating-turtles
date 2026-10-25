@@ -26,7 +26,7 @@ class TurtleRecord:
     history: list[dict[str, Any]] = field(default_factory=list)
     blocked: dict[str, str] = field(default_factory=dict)
 
-RESUMABLE_JOBS = {"birth", "bootstrap", "fuel_cycle"}
+RESUMABLE_JOBS = {"birth", "bootstrap", "fuel_cycle", "wood_cycle"}
 
 def progress_signature(view: dict[str, Any]) -> str:
     """Stable physical observations determining whether to retry paused work.
@@ -36,7 +36,7 @@ def progress_signature(view: dict[str, Any]) -> str:
     """
     fields = ("inventory", "storage", "storage_observed", "front", "bottom",
               "fuel", "bootstrap_stage", "bootstrap_done", "processing",
-              "birth", "fuel_cycle")
+              "birth", "fuel_cycle", "wood_cycle")
     return json.dumps({name: view.get(name) for name in fields},
                       sort_keys=True, separators=(",", ":"))
 
@@ -78,7 +78,7 @@ class Colony:
         return rec
 
     def queue(self, ident: int, action: str, args: dict[str, Any] | None = None) -> Job:
-        if action not in {"observe", "process", "produce", "birth", "bootstrap", "fuel_cycle", "collect", "station_pack"}:
+        if action not in {"observe", "process", "produce", "birth", "bootstrap", "fuel_cycle", "wood_cycle", "collect", "station_pack"}:
             raise ValueError("Unsupported turtle task: " + action)
         rec = self.turtles[ident]
         if rec.outstanding:
@@ -269,7 +269,7 @@ def next_job(rec: TurtleRecord) -> tuple[str,dict[str,Any]] | None:
     if (view.get("bootstrap_enabled") and view.get("bootstrap_done")
         and view.get("storage_observed")
         and not any(view.get(k) for k in ("processing", "manufacturing",
-                       "replication", "station", "birth", "fuel_cycle"))):
+                       "replication", "station", "birth", "fuel_cycle", "wood_cycle"))):
         # Only autonomously replenish fuel at a verified M2 chest/furnace.
         if view.get("front")=="minecraft:furnace" and (
               view.get("bottom")=="minecraft:chest"
@@ -288,6 +288,17 @@ def next_job(rec: TurtleRecord) -> tuple[str,dict[str,Any]] | None:
                                 "stage":view.get("bootstrap_stage")},sort_keys=True)
                 if rec.blocked.get("fuel_cycle")!=key:
                     return "fuel_cycle",{"snapshot_key":key}
+            # Keep enough planks of ONE wood species for a future turtle.
+            # Stored planks and carried planks contribute to the same reserve.
+            planks = max((n for name,n in stock.items()
+                          if name.startswith("minecraft:")
+                          and name.endswith("_planks")), default=0)
+            if planks < 14:
+                key=json.dumps({"planks":planks,"fuel":total,
+                                "pose":view.get("pose"),
+                                "stage":view.get("bootstrap_stage")},sort_keys=True)
+                if rec.blocked.get("wood_cycle")!=key:
+                    return "wood_cycle",{"snapshot_key":key}
     if any(view.get(k) for k in
            ("processing", "manufacturing", "replication", "station", "birth")):
         return None

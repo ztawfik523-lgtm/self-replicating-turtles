@@ -228,7 +228,7 @@ def test_completed_opted_in_base_auto_replenishes_when_fuel_low(tmp_path):
     task=next_job(rec)
     assert task and task[0]=="fuel_cycle"
     rec.last_snapshot["storage"]["minecraft:charcoal"]=3
-    assert next_job(rec) is None  # recovered reserve, no pointless work
+    assert next_job(rec)[0]=='wood_cycle'  # fuel fixed; lumber reserve still missing
 
 def test_fuel_cycle_never_runs_without_verified_base_or_during_smelt(tmp_path):
     db=Colony(tmp_path/"db.json");rec=db.register(hello())
@@ -313,7 +313,7 @@ def test_m2_full_charcoal_stock_still_refuels_turtle_when_movement_low(tmp_path)
     task=next_job(rec)
     assert task is not None and task[0]=="fuel_cycle"
     rec.last_snapshot["fuel"]=180
-    assert next_job(rec) is None  # stocked and moving safely
+    assert next_job(rec)[0]=='wood_cycle'  # movement restored; now gather lumber
     rec.last_snapshot["fuel"]=0
     assert next_job(rec)[0]=="fuel_cycle"
 
@@ -366,3 +366,37 @@ def test_legacy_smelt_error_can_start_a_new_job_once_reconciled(tmp_path):
     assert db.complete(7,job.id,{"id":job.id,"ok":False,"error":"blocked"})
     assert rec.outstanding is None
     assert len(rec.history)==1
+
+def test_completed_base_replenishes_same_species_planks(tmp_path):
+    db=Colony(tmp_path/"wood.json"); rec=db.register(hello())
+    rec.last_snapshot={
+        "bootstrap_enabled":True,"bootstrap_done":True,"storage_observed":True,
+        "front":"minecraft:furnace","bottom":"minecraft:chest",
+        "fuel":350,"inventory":[{"name":"minecraft:charcoal","count":4}],
+        "storage":{"minecraft:sand":6,"minecraft:oak_planks":8}}
+    job=next_job(rec)
+    assert job and job[0]=="wood_cycle"
+    rec.last_snapshot["storage"]["minecraft:oak_planks"]=16
+    assert next_job(rec) is None
+    rec.last_snapshot["storage"]["minecraft:oak_planks"]=8
+    rec.last_snapshot["fuel"]=70
+    assert next_job(rec)[0]=="fuel_cycle"
+
+def test_wood_cycle_pause_resumes_same_id_after_stock_change(tmp_path):
+    db=Colony(tmp_path/"wood_pause.json"); rec=db.register(hello())
+    view={"bootstrap_enabled":True,"bootstrap_done":True,
+          "storage_observed":True,"front":"minecraft:furnace",
+          "bottom":"minecraft:chest","fuel":300,
+          "inventory":[{"name":"minecraft:charcoal","count":5}],
+          "storage":{"minecraft:oak_planks":6}}
+    rec.last_snapshot=view
+    action,args=next_job(rec)
+    assert action=="wood_cycle"
+    job=db.queue(7,action,args);db.sent(7,job.id)
+    assert db.complete(7,job.id,{"ok":False,"error":"No reachable logs",
+                              "data":{"snapshot":view}})
+    assert rec.outstanding and rec.outstanding.state=="paused"
+    assert not db.record_snapshot(7,dict(view))
+    new=dict(view,storage={"minecraft:oak_planks":10})
+    assert db.record_snapshot(7,new)
+    assert rec.outstanding.id==job.id and rec.outstanding.state=="queued"

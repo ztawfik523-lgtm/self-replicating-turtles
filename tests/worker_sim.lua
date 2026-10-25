@@ -131,3 +131,20 @@ local runOk,runError=pcall(w.run)
 assert(not runOk and tostring(runError):find('stop mock worker loop'))
 assert(autoRuns==0,'Failed job must not resurvey same terrain after reboot')
 print('PASS: failed M2 jobs remain paused across restart')
+
+-- The same failed lumber job must retry under its original ID when the
+-- controller observes new trees or resources; do not create a new job.
+local tries=0
+package.loaded.state.data.woodCycle={jobId='7:wood',stage='gather'}
+package.loaded.bootstrap={woodCycle=function(id)
+ assert(id=='7:wood')
+ tries=tries+1
+ if tries==1 then error('No reachable trees today') end
+ package.loaded.state.data.woodCycle=nil
+ return true
+end}
+local lumber={id='7:wood',action='wood_cycle',args={}}
+assert(not w.handle(lumber).ok)
+assert(w.handle(lumber).ok and tries==2)
+assert(w.handle(lumber).ok and tries==2)
+print('PASS: paused lumber job retries once with same persistent ID')
