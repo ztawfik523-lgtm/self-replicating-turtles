@@ -228,7 +228,7 @@ def test_completed_opted_in_base_auto_replenishes_when_fuel_low(tmp_path):
     task=next_job(rec)
     assert task and task[0]=="fuel_cycle"
     rec.last_snapshot["storage"]["minecraft:charcoal"]=3
-    assert next_job(rec) is None  # recovered reserve, no pointless work
+    assert next_job(rec)[0]=='wood_cycle'  # fuel fixed; lumber reserve still missing
 
 def test_fuel_cycle_never_runs_without_verified_base_or_during_smelt(tmp_path):
     db=Colony(tmp_path/"db.json");rec=db.register(hello())
@@ -313,7 +313,7 @@ def test_m2_full_charcoal_stock_still_refuels_turtle_when_movement_low(tmp_path)
     task=next_job(rec)
     assert task is not None and task[0]=="fuel_cycle"
     rec.last_snapshot["fuel"]=180
-    assert next_job(rec) is None  # stocked and moving safely
+    assert next_job(rec)[0]=='wood_cycle'  # movement restored; now gather lumber
     rec.last_snapshot["fuel"]=0
     assert next_job(rec)[0]=="fuel_cycle"
 
