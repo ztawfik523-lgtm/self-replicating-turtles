@@ -92,7 +92,11 @@ CI compiles all Lua source files and runs existing recovery regression tests.
 
 ## Known technical gaps
 
-- This does **not** acquire wood, sand, ore, diamonds or fuel from terrain.
+- The opt-in M2 runtime **does** gather wood, sand, cobblestone and
+  charcoal in bounded simulated landscapes, but has **not** yet been run
+  end-to-end in a real Minecraft survival world.
+- Autonomous acquisition of iron, redstone and diamonds for a new offspring
+  is still missing, as is a sustainable, replenished sapling farm.
 - Intermediate `factory.make()` interruption recovery and arbitrary
   `replicate.resume()` stages are not yet fully generalized.
 - Chunk loading and multiplayer colony territory management are still future
@@ -178,3 +182,27 @@ unattended survival in every Minecraft environment.
 **Still unsupported:** guaranteed movement reconciliation after a power loss
 mid-step, general obstacle bypass, arbitrary terrain and renewable forestry.
 No extra player micro-tests are requested for these incomplete features.
+
+## Engineering audit — 2026-10-25
+
+The previous M1 test is still the only in-game verification. The M2 tree/sand/
+stone/base/charcoal implementation is retained but explicitly unverified in
+Minecraft. The following gaps were found and addressed offline:
+
+- **Duplicate TCP/WebSocket turtle ID:** Reject an already-connected ID
+  *before* persisting its hello snapshot. A rejected connection no longer
+  unlocks an active turtle's session. Tested using concurrent WebSockets.
+- **Movement fuel versus stored fuel:** M2 now checks whether the turtle can
+  safely complete travel by consuming earned charcoal when required. The
+  controller can schedule a refill even if the chest has enough charcoal but
+  the turtle's own movement gauge is low.
+- **Interrupted furnace manufacture:** If the eight cobblestone were already
+  staged into the initial chest when a crash occurred, M2 retrieves those
+  ingredients before deciding to mine new stone, then resumes the same job.
+- **Offline test coverage:** Live-connection duplication, low movement fuel,
+  the real `fuel.ensure` logic, crash during first furnace recipe, and
+  repeat charcoal-batch behavior.
+
+The first real M2 milestone remains one **complete**, player-visible run in
+suitable terrain, not dozens of tiny manual probes. No existing turtle is
+automatically switched to M2; that remains explicit opt-in.

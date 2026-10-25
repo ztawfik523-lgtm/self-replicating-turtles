@@ -21,9 +21,9 @@ Minecraft **1.20.1 Forge**, CC: Tweaked, Advanced Peripherals, Turtlematic.
 
 **New experimental track:** `0.4.0-dev` provides a Python controller and Lua worker in `controller/`, `tg/worker.lua` and `tg/workshop.lua`, with a **separate** installer `controller/install.lua`. The stable root installer still downloads the pinned v0.3.5 version. **Milestone 1 verified in Minecraft on 2026-10-24:** parent turtle **ID 10** autonomously placed its workstation, processed supplied materials, built, initialized, programmed and booted child **ID 11**. Both joined the Python controller. This required a carried chest item, a crafting table upgrade and supplied reproduction materials; it is **not yet** autonomous gathering. See [PLAN.md](PLAN.md) and [controller/README.md](controller/README.md).
 
-- **Verified in Minecraft:** mining, manufactured offspring from supplied components, parent programming and booting an offspring.
-- **Implemented and mock-tested (not yet verified in Minecraft):** furnace processing of raw iron, gold, cobblestone, sand and logs using temporary inventory storage.
-- **Not implemented:** automated gathering of every manufacturing resource, harvesting/replanting trees, assembling infrastructure without supplied blocks, reliable long-range exploration.
+- **Verified in Minecraft:** one supplied-materials workstation-to-child birth (parent 10, child 11), including iron/stone/glass processing, child initialization and first boot.
+- **Implemented and simulation-tested only (v0.5.0-dev):** bounded tree harvesting, first chest crafted from harvested logs, sand and cobblestone gathering, an established furnace, initial charcoal, and recurrent charcoal/fuel management.
+- **Not yet implemented or verified:** complete ore acquisition for reproduction (iron/redstone/diamonds), a perpetual replanted tree farm, reliable long-range exploration, and fully unattended recursive generations.
 
 This is a fixed-recipe robotics experiment, **not** a general AI or mature unattended survival colony.
 

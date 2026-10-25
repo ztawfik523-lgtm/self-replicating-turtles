@@ -202,3 +202,35 @@ demonstrate offspring and grandchild created from world-gathered resources.
 repeat-fuel simulations are complete. This milestone is still **pending one
 Minecraft end-to-end acceptance run** in suitable terrain. No live M2 test
 has been attempted, and no original turtle installation was changed.
+
+## Audit and next steps — 2026-10-25
+
+Rechecked existing M1 and M2 programs, source pinning, controller protocol,
+WebSocket sessions, startup/offspring inheritance, 16-slot first-chest
+constraints, movement journal, crafting, fuel, furnace processing, base
+scheduling, and automated test coverage.
+
+**Found and fixed:**
+1. **Live ID collision:** A duplicate ID could overwrite a legitimate
+   turtle's controller snapshot, then release its connection guard. This is
+   now rejected without changing the live session.
+2. **No self-refueling despite self-produced charcoal:** Bounded M2 travel can
+   now consume earned charcoal for movement; a stocked base with low turtle
+   fuel triggers a maintenance job too.
+3. **Interrupted furnace recipe:** A crash while the first furnace cobblestone
+   is staged in the chest now resumes after collecting the staged items.
+4. **Regression coverage:** Added multi-socket ID tests, actual coal/charcoal
+   refueling tests, and simulated furnace-crafting interruption tests.
+5. **Documentation:** Removed outdated claims that gathering and charcoal
+   processing have not been implemented at all. They exist as offline-verified
+   experimental M2 features, not as in-game-proven autonomy.
+
+**Remaining risks / separate milestones:** M2 still needs one actual
+Minecraft environment-to-base run; fuel yield and search results depend on
+terrain. Mining iron/redstone/diamonds, reliable recovery after ambiguous
+movement crashes, sapling replenishment, chunk ticking and multi-generation
+reproduction are separate unmet objectives. Existing parent/child computers
+10 and 11 stay unchanged.
+
+**Next code-first focus:** strengthen tree management, resource acquisition
+and path planning without expanding player testing frequency.
