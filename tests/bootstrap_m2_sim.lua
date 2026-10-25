@@ -435,6 +435,11 @@ assert((stored['minecraft:sand'] or 0)>=6,
 assert((stored['minecraft:cobblestone'] or 0)+
        (stored['minecraft:stone'] or 0)>=14,
  'Material maintenance failed to stock enough workshop stone')
+print('STONE TRACE: stock='..tostring(stored['minecraft:cobblestone'])..
+ ' total_mined='..tostring(stoneDepth)..
+ ' north_cap='..tostring(shaftCap)..
+ ' south_cap='..tostring(otherShaftCap)..
+ ' south_top='..tostring(otherShaftDug[0]))
 assert(otherShaftCap,
  'Second explored stone shaft was left open')
 local savedStone=stored['minecraft:cobblestone']
