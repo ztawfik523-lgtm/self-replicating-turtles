@@ -169,13 +169,69 @@ local function recoverExploration()
  state.data.forageTrail=nil
  state.save()
 end
+-- The shaft no longer has a fixed position two blocks in front of home.
+-- This routine is only called from an explored, supported surface cell and
+-- uses the exact same durable breadcrumbs as the rest of the terrain search.
+local SHAFT_SAFE={
+ ['minecraft:grass_block']=true,['minecraft:dirt']=true,
+ ['minecraft:coarse_dirt']=true,['minecraft:stone']=true,
+ ['minecraft:granite']=true,['minecraft:diorite']=true,
+ ['minecraft:andesite']=true,['minecraft:tuff']=true
+}
+local function probeCobble()
+ local route=assert(state.data.forageTrail,'Shaft requires active forage route')
+ local p,h=state.data.pose,state.data.bootstrap.home
+ if p.y~=h.y or math.abs(p.x-h.x)+math.abs(p.z-h.z)<2 then return end
+ local checkpoint=#route.moves
+ local oldSlot=turtle.getSelectedSlot()
+ local caps={'minecraft:dirt','minecraft:coarse_dirt','minecraft:granite',
+  'minecraft:diorite','minecraft:andesite','minecraft:tuff','minecraft:cobblestone'}
+ local function capMaterial()
+  for _,name in ipairs(caps) do
+   -- Keep the eight cobble needed for the actual furnace, never sacrifice it
+   -- merely to cover an otherwise exhausted shaft.
+   if count(name)>(name=='minecraft:cobblestone' and 8 or 0) then
+    return name
+   end
+  end
+ end
+ for _=1,SHAFT do
+  local extra=(capMaterial() and 0 or 1)
+  if count('minecraft:cobblestone')>=8+extra then break end
+  local below=block('down')
+  if not below or not SHAFT_SAFE[below] then break end
+  if not fuel.ensure(2*(#route.moves+1)+RESERVE+8) then break end
+  local free=false
+  for i=1,16 do
+   local d=detail(i)
+   if not d or (turtle.getItemSpace and turtle.getItemSpace(i)>0) then
+    free=true;break
+   end
+  end
+  if not free then break end
+  assert(turtle.digDown(),'Cannot excavate shallow mining shaft')
+  assert(nav.down(),'Cannot descend a mined shaft safely')
+ end
+ rewindTrail(checkpoint)
+ if not block('down') then
+  -- Leaving an open hole on the outbound route would break the next trip.
+  -- Plug with a recovered nonessential block; spare cobble is a fallback.
+  local item=assert(capMaterial(),'Cannot cap shallow shaft without spare solid material')
+  assert(selectItem(item),'Shaft cap material disappeared')
+  assert(turtle.placeDown(),'Could not cap excavated shaft with '..item)
+  assert(block('down'),'Shaft cap did not become solid ground')
+ end
+ turtle.select(oldSlot)
+end
 local function scan(resource,needed)
  local function have()
   if resource=='wood' then
    local _,n=matching('log');return n
-  elseif resource=='sand' then return count('minecraft:sand') end
+  elseif resource=='sand' then return count('minecraft:sand')
+  elseif resource=='cobble' then return count('minecraft:cobblestone') end
  end
- assert(resource=='wood' or resource=='sand','Unsupported forage target')
+ assert(resource=='wood' or resource=='sand' or resource=='cobble',
+  'Unsupported forage target')
  atHome()
  assert(not state.data.forageTrail,'An old exploration route must be recovered first')
  local home=state.data.bootstrap.home
@@ -183,6 +239,7 @@ local function scan(resource,needed)
  state.save()
  local trail=state.data.forageTrail
  local before=have()
+ local shafts,visited=0,{}
  -- Movement budget includes retracing every successful outbound step and
  -- the reserved fuel needed to ascend/descend a harvested tree.
  local function walk()
@@ -213,6 +270,15 @@ local function scan(resource,needed)
   end
   if resource=='sand' and ground=='minecraft:sand' and have()<needed then
    assert(turtle.digDown(),'Could not gather sand below explored path')
+  elseif resource=='cobble' and have()<needed and shafts<6 then
+   local p,h=state.data.pose,state.data.bootstrap.home
+   local key=p.x..':'..p.z
+   if not visited[key] and p.y==h.y and
+      math.abs(p.x-h.x)+math.abs(p.z-h.z)>=2 and SHAFT_SAFE[ground] then
+    visited[key]=true
+    shafts=shafts+1
+    probeCobble()
+   end
   end
   return true
  end
@@ -353,29 +419,9 @@ end
 local function mineCobble()
  if count('minecraft:cobblestone')>=8 then return end
  atHome()
- assertFuel(2*SHAFT+16)
- -- Offset the shaft from the storage block, so no downward digging occurs
- -- in the home cell occupied by the chest.
- local moved=0
- for _=1,2 do
-  assert(safeFront(),'No safe access from home to planned mining shaft')
-  assert(nav.forward(),'Cannot approach shallow stone shaft')
-  moved=moved+1
- end
- local depth=0
- for _=1,SHAFT do
-  if count('minecraft:cobblestone')>=8 then break end
-  local n=block('down')
-  if not n or not ROCK[n] then break end
-  assert(turtle.digDown(),'Cannot mine shaft material: '..n)
-  assert(nav.down(),'Cannot descend cleared shaft')
-  depth=depth+1
- end
- for _=1,depth do assert(nav.up(),'Cannot climb back up the shaft') end
- for _=1,moved do assert(nav.back(),'Cannot return from shallow shaft') end
- atHome()
- assert(count('minecraft:cobblestone')>=8,
-  'Shallow shaft lacked eight cobblestone: safer to relocate than drill blindly')
+ local _,available=scan('cobble',8)
+ assert(available>=8,
+  'No safe shallow stone shaft found in bounded terrain; base preserved')
 end
 local FURNACE={
  [1]='minecraft:cobblestone',[2]='minecraft:cobblestone',

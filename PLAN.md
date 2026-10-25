@@ -281,3 +281,22 @@ position reference. The turtle correctly refuses to invent its coordinates.
 - Side bypasses may run for six blocks before rejoining the original ray; otherwise the robot safely retraces to base.
 
 - Canopy harvesting inspects up to three nearby leaf layers, taking only matching vanilla leaves and opportunistically replanting any resulting saplings away from the reserved furnace cell. Leaf drops and tree growth are probabilistic; unattended perpetual wood remains unproven.
+
+## M2 adaptive mineral collection — experimental
+
+The fixed two-block-ahead excavation site has been replaced by a bounded
+surface search for an accessible shaft location at least two blocks from
+the chest. The route can detour around obstacles and is recorded by the same
+restart-safe movement breadcrumbs as the forestry search.
+
+At each of at most six candidate sites, the turtle probes downward through
+a limited set of non-falling terrain blocks, retreats along its excavated
+vertical route, and caps the hole with recovered dirt or surplus stone.
+This avoids destroying the chest or leaving unsupported holes on routine
+return paths. The 8-cobblestone target can be met at sites away from the
+original forward ray.
+
+The controller still does **not** have autonomous ore prospecting for
+iron, redstone or diamond, large-scale underground navigation, or robust
+response to every kind of lava/water intrusion. Minecraft M2 acceptance
+is still pending; offline checks do not substitute for it.

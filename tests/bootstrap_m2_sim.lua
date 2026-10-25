@@ -14,6 +14,8 @@ local sand={}
 for x=1,3 do sand[x..':0']=true end
 for x=-3,-1 do sand[x..':0']=true end
 local stoneDepth=0
+local shaftCap=false
+local shaftDug={}
 local moves=0
 local extraMovementFuel=0
 local function key(x,z)return x..':'..z end
@@ -74,8 +76,11 @@ local function below()
   return 'minecraft:chest'
  end
  if physical.y==0 and sand[key(physical.x,physical.z)] then return 'minecraft:sand' end
- if physical.x==0 and physical.z==2 and physical.y<=0 and physical.y>-17 then
-  return 'minecraft:stone'
+ if physical.x==0 and physical.z==2 then
+  if physical.y==0 and shaftCap then return 'minecraft:dirt' end
+  if physical.y<=0 and physical.y>-17
+      and not shaftDug[physical.y] then return 'minecraft:stone' end
+  return nil
  end
  if physical.y==0 then return 'minecraft:grass_block' end
  return nil
@@ -143,6 +148,7 @@ turtle={
    sand[key(physical.x,physical.z)]=nil
    add('minecraft:sand',1)
   elseif n=='minecraft:stone' then
+   shaftDug[physical.y]=true
    add('minecraft:cobblestone',1)
    stoneDepth=stoneDepth+1
   elseif n=='minecraft:grass_block' then
@@ -192,6 +198,12 @@ turtle={
   return true
  end,
  placeDown=function()
+  if physical.x==0 and physical.z==2 then
+   local itemName=item(sel) and item(sel).name
+   assert(itemName=='minecraft:dirt' or itemName=='minecraft:cobblestone',
+    'Shaft cap must use recovered dirt or surplus stone')
+   spend(itemName,1);shaftCap=true;return true
+  end
   assert(item(sel) and item(sel).name=='minecraft:chest')
   assert(physical.x==0 and physical.z==0)
   world.chest=true;spend('minecraft:chest',1);return true
@@ -345,7 +357,8 @@ assert(physical.x==0 and physical.y==0 and physical.z==0 and physical.dir==0)
 assert(d.pose.x==physical.x and d.pose.y==physical.y and
        d.pose.z==physical.z and d.pose.dir==physical.dir,
        'Navigation tracked pose diverged from physical turtle')
-assert(stoneDepth>=8,'No cobblestone mining happened')
+assert(stoneDepth>=8 and shaftCap,
+ 'Shallow mining must recover eight cobble and cap the excavation')
 assert(cut['0:1:0'] and cut['4:0:0'])
 print('PASS: two trees, sand, shallow stone, chest, furnace and charcoal')
 

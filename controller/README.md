@@ -225,3 +225,14 @@ terrain search with a blocked first ray, a hidden tree, sand, and an injected
 reboot. This is not a Minecraft acceptance claim.
 
 The upgraded detour explores along one side of an obstructing ray for up to six forward blocks, testing for a safe rejoin after each step. Bounded canopy-pruning can supply a matching sapling, and the turtle attempts to plant it at the harvested trunk, except in its permanent furnace location. Neither feature is a substitute for a general pathfinder or guaranteed tree-farm yields.
+
+## Adaptive shallow-stone worksite
+
+The turtle no longer assumes that its first stone shaft must be two blocks
+in front of home. Its bounded search finds potential sites off the original
+axis, digs a vertical shaft only through known non-falling block families,
+then retraces the same persistent route. Before departing, it restores
+the top soil or caps the excavation with surplus cobblestone, retaining the
+eight-cobblestone furnace bill. Attempts and depths are bounded and rejected
+sites are left alone within the same survey. Real-world lava intrusion,
+underground cave exploration and ore selection still require more work.
