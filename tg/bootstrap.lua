@@ -183,12 +183,23 @@ local function probeCobble()
  local p,h=state.data.pose,state.data.bootstrap.home
  if p.y~=h.y or math.abs(p.x-h.x)+math.abs(p.z-h.z)<2 then return end
  local checkpoint=#route.moves
+ local oldSlot=turtle.getSelectedSlot()
+ local caps={'minecraft:dirt','minecraft:coarse_dirt','minecraft:granite',
+  'minecraft:diorite','minecraft:andesite','minecraft:tuff','minecraft:cobblestone'}
+ local function capMaterial()
+  for _,name in ipairs(caps) do
+   -- Keep the eight cobble needed for the actual furnace, never sacrifice it
+   -- merely to cover an otherwise exhausted shaft.
+   if count(name)>(name=='minecraft:cobblestone' and 8 or 0) then
+    return name
+   end
+  end
+ end
  for _=1,SHAFT do
-  if count('minecraft:cobblestone')>=8 then break end
+  local extra=(capMaterial() and 0 or 1)
+  if count('minecraft:cobblestone')>=8+extra then break end
   local below=block('down')
   if not below or not SHAFT_SAFE[below] then break end
-  -- Avoid excavating into a full inventory and preserve enough fuel for
-  -- every vertically reversed step AND the horizontal return to base.
   if not fuel.ensure(2*(#route.moves+1)+RESERVE+8) then break end
   local free=false
   for i=1,16 do
@@ -202,6 +213,15 @@ local function probeCobble()
   assert(nav.down(),'Cannot descend a mined shaft safely')
  end
  rewindTrail(checkpoint)
+ if not block('down') then
+  -- Leaving an open hole on the outbound route would break the next trip.
+  -- Plug with a recovered nonessential block; spare cobble is a fallback.
+  local item=assert(capMaterial(),'Cannot cap shallow shaft without spare solid material')
+  assert(selectItem(item),'Shaft cap material disappeared')
+  assert(turtle.placeDown(),'Could not cap excavated shaft with '..item)
+  assert(block('down'),'Shaft cap did not become solid ground')
+ end
+ turtle.select(oldSlot)
 end
 local function scan(resource,needed)
  local function have()
