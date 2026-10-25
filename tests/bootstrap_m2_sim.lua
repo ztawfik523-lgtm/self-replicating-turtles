@@ -283,6 +283,25 @@ assert(not ok and tostring(reason):find('power loss'))
 assert(count('minecraft:chest')>=1)
 assert(not world.chest)
 turtle.placeDown=basePlace
+-- A power cut after furnace ingredients are staged below, but before
+-- turtle.craft, must retrieve those cobblestone and rebuild from the SAME job.
+local normalCraft=package.loaded.factory.craftStep
+local breakFurnace=true
+package.loaded.factory.craftStep=function(label,pattern,out)
+ if label=='bootstrap_furnace' and breakFurnace then
+  breakFurnace=false
+  spend('minecraft:cobblestone',8)
+  stored['minecraft:cobblestone']=(stored['minecraft:cobblestone'] or 0)+8
+  error('simulated power loss while staging furnace recipe')
+ end
+ return normalCraft(label,pattern,out)
+end
+local okFurnace,whyFurnace=pcall(bootstrap.run,'10:initial')
+assert(not okFurnace and tostring(whyFurnace):find('power loss'))
+assert(d.bootstrap.stage=='craft_bootstrap_furnace')
+assert(stored['minecraft:cobblestone']==8)
+package.loaded.factory.craftStep=normalCraft
+
 -- Resume a single partially completed furnace batch rather than mining the
 -- eight construction cobblestone again or harvesting additional logs.
 local baseSmelt=package.loaded.process.run
@@ -309,6 +328,9 @@ assert(d.processing==nil)
 assert(d.bootstrap.jobId=='10:initial')
 print('PASS: interrupted planks and chest item resume under original job')
 assert(d.bootstrap.complete==true)
+assert((stored['minecraft:cobblestone'] or 0)==0,
+ 'Interrupted furnace recipe left ingredient duplicates below')
+print('PASS: interrupted furnace crafting recovers staged cobblestone')
 assert(world.chest and world.furnace)
 assert(not world.worksiteSapling,'Furnace cell must not be replanted')
 assert(count('minecraft:charcoal')>=1)

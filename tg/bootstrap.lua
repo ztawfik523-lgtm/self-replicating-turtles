@@ -284,6 +284,9 @@ local FURNACE={
 local function furnace()
  if block('front')=='minecraft:furnace' then return end
  if count('minecraft:furnace')==0 then
+  -- Save intent before craftStep moves ingredients into the chest.
+  -- A reboot may occur after those items are staged but before output.
+  mark('craft_bootstrap_furnace')
   factory.craftStep('bootstrap_furnace',FURNACE,'minecraft:furnace')
  end
  local n=block('front')
@@ -349,6 +352,17 @@ function M.run(jobId)
   scan('sand',6)
   assert(count('minecraft:sand')>=6,
    'No six sand near home; relocate base near a river or sandy terrain')
+ end
+ -- If an interrupted furnace recipe left cobble or other inputs in the
+ -- temporary chest, recover them BEFORE checking whether to mine more stone.
+ -- This is safe to repeat: collect() is a no-op for an empty chest.
+ local stage=state.data.bootstrap.stage
+ if stage=='craft_bootstrap_furnace' or stage=='recover_bootstrap_furnace' then
+  assert(block('down')=='minecraft:chest',
+   'Cannot recover first furnace crafting without the base chest')
+  mark('recover_bootstrap_furnace')
+  factory.collect()
+  mark('furnace_materials_recovered')
  end
  -- A carried or placed furnace has already consumed construction stone.
  -- Do not remine the same eight blocks during an interrupted charcoal run.
