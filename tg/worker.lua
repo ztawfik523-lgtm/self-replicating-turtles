@@ -81,7 +81,7 @@ local function snapshot()
   bootstrap_enabled=fs.exists('/tg/bootstrap-opt-in.dat'),
   bootstrap_done=d.bootstrap and d.bootstrap.complete==true or false,
   bootstrap_stage=d.bootstrap and d.bootstrap.stage or nil,
-  fuel_cycle=d.fuelCycle~=nil}
+  fuel_cycle=d.fuelCycle~=nil,wood_cycle=d.woodCycle~=nil}
 end
 local function execute(job)
  local a=job.action
@@ -102,6 +102,10 @@ local function execute(job)
  if a=='fuel_cycle' then
   require('bootstrap').fuelCycle(job.id)
   return {charcoal_replenished=true,snapshot=snapshot()}
+ end
+ if a=='wood_cycle' then
+  require('bootstrap').woodCycle(job.id)
+  return {plank_reserve_ready=true,snapshot=snapshot()}
  end
  if a=='birth' then
   require('workshop').run(job.id)
@@ -125,7 +129,8 @@ function M.handle(job)
   -- retry the original ID, not manufacture a second child under a new ID.
   if previous.status=='done' then
    if (job.action~='birth' and job.action~='bootstrap'
-       and job.action~='fuel_cycle') or
+       and job.action~='fuel_cycle'
+       and job.action~='wood_cycle') or
       (previous.result and previous.result.ok) then
     return previous.result
    end
@@ -138,7 +143,8 @@ function M.handle(job)
   -- Birth is designed to resume from observed resources and lineage count.
   -- Never retry an arbitrary legacy manufacturing operation blindly.
   if previous.status=='started' and job.action~='birth'
-      and job.action~='bootstrap' and job.action~='fuel_cycle' then
+      and job.action~='bootstrap' and job.action~='fuel_cycle'
+      and job.action~='wood_cycle' then
    return {type='result',id=job.id,ok=false,
       error='Interrupted operation requires physical reconciliation'}
   end
@@ -193,6 +199,12 @@ function M.run(url)
   if interrupted.status=='started' then
    M.handle({id=cycle.jobId,action='fuel_cycle',args=interrupted.args or {}})
   end
+ end
+ local wood=state.data.woodCycle
+ if wood and wood.jobId and interrupted.id==wood.jobId
+     and interrupted.action=='wood_cycle' and
+     interrupted.status=='started' then
+  M.handle({id=wood.jobId,action='wood_cycle',args=interrupted.args or {}})
  end
  while true do
   local ok,err=pcall(function()
