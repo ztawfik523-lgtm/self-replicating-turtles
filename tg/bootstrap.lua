@@ -240,7 +240,7 @@ local function scan(resource,needed)
  state.save()
  local trail=state.data.forageTrail
  local before=have()
- local shafts,visited=0,{}
+ local shafts,visited,soilProbes=0,{},{}
  -- Movement budget includes retracing every successful outbound step and
  -- the reserved fuel needed to ascend/descend a harvested tree.
  local function walk()
@@ -274,10 +274,21 @@ local function scan(resource,needed)
   elseif resource=='cobble' and have()<needed and shafts<6 then
    local p,h=state.data.pose,state.data.bootstrap.home
    local key=p.x..':'..p.z
-   if not visited[key] and p.y==h.y and
-      math.abs(p.x-h.x)+math.abs(p.z-h.z)>=2 and SHAFT_SAFE[ground] then
+   local dx,dz=p.x-h.x,p.z-h.z
+   local sector
+   if math.abs(dx)>math.abs(dz) then
+    sector=dx>=0 and 'east' or 'west'
+   else
+    sector=dz>=0 and 'north' or 'south'
+   end
+   local soft=ground=='minecraft:grass_block'
+     or ground=='minecraft:dirt' or ground=='minecraft:coarse_dirt'
+   if not visited[key] and p.y==h.y
+      and math.abs(dx)+math.abs(dz)>=2 and SHAFT_SAFE[ground]
+      and (not soft or not soilProbes[sector]) then
     visited[key]=true
     shafts=shafts+1
+    if soft then soilProbes[sector]=true end
     probeCobble(needed)
    end
   end
