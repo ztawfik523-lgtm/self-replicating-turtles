@@ -15,6 +15,7 @@ for x=1,3 do sand[x..':0']=true end
 for x=-3,-1 do sand[x..':0']=true end
 local stoneDepth=0
 local moves=0
+local extraMovementFuel=0
 local function key(x,z)return x..':'..z end
 local dirs={{0,1},{1,0},{0,-1},{-1,0}}
 local function front()
@@ -85,7 +86,7 @@ turtle={
  getItemSpace=function(i)return item(i) and 64-item(i).count or 64 end,
  getSelectedSlot=function()return sel end,
  select=function(i)sel=i;return true end,
- getFuelLevel=function()return 1200-moves end,
+ getFuelLevel=function()return 1200-moves+extraMovementFuel end,
  inspect=function()
   local n=blockFront()
   return n~=nil,n and {name=n} or nil
@@ -210,7 +211,13 @@ turtle={
 package.loaded.state={data=d,save=function()end,
  assertSafe=function()assert(not d.pending)end}
 package.loaded.fuel={level=function()return turtle.getFuelLevel()end,
- ensure=function(n)return turtle.getFuelLevel()>=n end}
+ ensure=function(n)
+  while turtle.getFuelLevel()<n and count('minecraft:charcoal')>0 do
+   spend('minecraft:charcoal',1)
+   extraMovementFuel=extraMovementFuel+80
+  end
+  return turtle.getFuelLevel()>=n
+ end}
 peripheral={wrap=function(side)
  if side=='bottom' and world.chest then
   return {list=function()
@@ -359,3 +366,16 @@ assert(count('minecraft:charcoal')>=3,
  'Repeated completion ID should not consume resources')
 assert(physical.x==0 and physical.y==0 and physical.z==0 and physical.dir==0)
 print('PASS: depleted base fuel is renewed without rebuilding or losing stock')
+
+-- Even with plenty of charcoal remaining, a low-movement-fuel turtle must
+-- consume one piece to power the next round trip. No extra tree is needed.
+add('minecraft:charcoal',8)
+extraMovementFuel=moves-1200+40
+assert(turtle.getFuelLevel()==40)
+local beforeRefuel=count('minecraft:charcoal')
+assert(bootstrap.fuelCycle('10:renewal:2'))
+assert(turtle.getFuelLevel()>=120)
+assert(count('minecraft:charcoal')==beforeRefuel-1,
+ 'Low-fuel turtle did not consume exactly one stocked charcoal')
+assert(d.lastFuelJob=='10:renewal:2')
+print('PASS: established base powers its own movement from saved charcoal')
