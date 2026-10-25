@@ -258,3 +258,22 @@ Lua simulations exercise both failed preflight and reboot-without-change.
 **Known limitation:** autonomous recovery after a movement logged as
 `pending` at a hard crash is still unresolved without a reliable external
 position reference. The turtle correctly refuses to invent its coordinates.
+
+## M2 navigation integration: bounded detours and durable return routes
+
+- The M2 survey can bypass a narrow obstacle by testing either side while
+  preserving the original survey heading. It refuses to dig unknown terrain,
+  cross liquid/unsupported ground, or continue after running out of return fuel.
+- Every completed exploratory movement is journaled in the **same state save**
+  as the pose change. Once a reboot restores an unambiguous saved pose, the
+  turtle retraces the durable inverse route before resuming resource collection.
+- A reboot *during* a physical move leaves a pending intent; code deliberately
+  halts rather than guessing whether the turtle moved.
+- The integrated landscape test includes an intact stone obstacle, a tree
+  reachable only by a detour, a simulated reboot with saved route steps, return
+  to base, opportunistic sand pickup, and an ambiguous in-flight movement halt.
+- The technique handles narrow static obstructions; it is not general path
+  planning, waypoint logistics, terrain elevation, long-distance navigation,
+  GPS-based uncertain-step recovery, or a permanent renewable tree farm.
+- One Minecraft end-to-end check remains the eventual M2 acceptance gate;
+  no per-commit user tests.
