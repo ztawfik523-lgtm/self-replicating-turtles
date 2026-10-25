@@ -223,3 +223,5 @@ unsupported cliffs, wider obstacles, and all unobserved terrain are not
 considered solved. Offline simulation exercises the actual navigator and
 terrain search with a blocked first ray, a hidden tree, sand, and an injected
 reboot. This is not a Minecraft acceptance claim.
+
+The upgraded detour explores along one side of an obstructing ray for up to six forward blocks, testing for a safe rejoin after each step. Bounded canopy-pruning can supply a matching sapling, and the turtle attempts to plant it at the harvested trunk, except in its permanent furnace location. Neither feature is a substitute for a general pathfinder or guaranteed tree-farm yields.
