@@ -94,3 +94,23 @@ local phantom=w.handle({id='7:8',action='observe'})
 assert(phantom.ok and phantom.data.storage==nil)
 assert(phantom.data.storage_observed==false)
 print('PASS: disconnected and phantom storage cannot fabricate stock')
+
+-- A failed preflight has no persisted birth state. Adding the missing item
+-- must still retry under the SAME controller job ID rather than preserve the
+-- stale failure forever.
+local checks=0
+package.loaded.state.data.birth=nil
+package.loaded.workshop={run=function(jobId)
+ assert(jobId=='7:5')
+ checks=checks+1
+ if checks==1 then error('Missing crafting upgrade in preflight') end
+ return true
+end}
+local preflight={id='7:5',action='birth',args={}}
+local one=w.handle(preflight)
+assert(not one.ok and one.data and one.data.snapshot)
+local two=w.handle(preflight)
+assert(two.ok and checks==2)
+assert(w.handle(preflight).ok and checks==2,
+ 'Completed job ID must never execute a third time')
+print('PASS: failed preflight recovers same job ID after material correction')
