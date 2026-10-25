@@ -26,7 +26,7 @@ class TurtleRecord:
     history: list[dict[str, Any]] = field(default_factory=list)
     blocked: dict[str, str] = field(default_factory=dict)
 
-RESUMABLE_JOBS = {"birth", "bootstrap", "fuel_cycle", "wood_cycle"}
+RESUMABLE_JOBS = {"birth", "bootstrap", "fuel_cycle", "wood_cycle", "material_cycle"}
 
 def progress_signature(view: dict[str, Any]) -> str:
     """Stable physical observations determining whether to retry paused work.
@@ -36,7 +36,7 @@ def progress_signature(view: dict[str, Any]) -> str:
     """
     fields = ("inventory", "storage", "storage_observed", "front", "bottom",
               "fuel", "bootstrap_stage", "bootstrap_done", "processing",
-              "birth", "fuel_cycle", "wood_cycle")
+              "birth", "fuel_cycle", "wood_cycle", "material_cycle")
     return json.dumps({name: view.get(name) for name in fields},
                       sort_keys=True, separators=(",", ":"))
 
@@ -78,7 +78,7 @@ class Colony:
         return rec
 
     def queue(self, ident: int, action: str, args: dict[str, Any] | None = None) -> Job:
-        if action not in {"observe", "process", "produce", "birth", "bootstrap", "fuel_cycle", "wood_cycle", "collect", "station_pack"}:
+        if action not in {"observe", "process", "produce", "birth", "bootstrap", "fuel_cycle", "wood_cycle", "material_cycle", "collect", "station_pack"}:
             raise ValueError("Unsupported turtle task: " + action)
         rec = self.turtles[ident]
         if rec.outstanding:
@@ -269,7 +269,8 @@ def next_job(rec: TurtleRecord) -> tuple[str,dict[str,Any]] | None:
     if (view.get("bootstrap_enabled") and view.get("bootstrap_done")
         and view.get("storage_observed")
         and not any(view.get(k) for k in ("processing", "manufacturing",
-                       "replication", "station", "birth", "fuel_cycle", "wood_cycle"))):
+                       "replication", "station", "birth", "fuel_cycle", "wood_cycle",
+                       "material_cycle"))):
         # Only autonomously replenish fuel at a verified M2 chest/furnace.
         if view.get("front")=="minecraft:furnace" and (
               view.get("bottom")=="minecraft:chest"
@@ -299,6 +300,15 @@ def next_job(rec: TurtleRecord) -> tuple[str,dict[str,Any]] | None:
                                 "stage":view.get("bootstrap_stage")},sort_keys=True)
                 if rec.blocked.get("wood_cycle")!=key:
                     return "wood_cycle",{"snapshot_key":key}
+            # Baseline minerals are reusable worksite stocks, not a one-time
+            # kit handed to the original parent turtle.
+            raw_sand=stock.get("minecraft:sand",0)
+            stone=stock.get("minecraft:stone",0)+stock.get("minecraft:cobblestone",0)
+            if raw_sand<6 or stone<14:
+                key=json.dumps({"sand":raw_sand,"stone":stone,
+                                "pose":view.get("pose")},sort_keys=True)
+                if rec.blocked.get("material_cycle")!=key:
+                    return "material_cycle",{"snapshot_key":key}
     if any(view.get(k) for k in
            ("processing", "manufacturing", "replication", "station", "birth")):
         return None
