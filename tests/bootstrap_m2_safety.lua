@@ -20,7 +20,10 @@ turtle={
 local st={data={pose=pos,moves=0},save=function()end,
  assertSafe=function() assert(not st or true) end}
 package.loaded.state=st
-package.loaded.fuel={level=function()return fuelLevel end}
+package.loaded.fuel={
+ level=function()return fuelLevel end,
+ ensure=function(n)return fuelLevel>=n end
+}
 package.loaded.factory={}
 package.loaded.process={}
 local boot=dofile('tg/bootstrap.lua')
