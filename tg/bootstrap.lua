@@ -397,6 +397,13 @@ local function deposit()
  end
  turtle.select(old)
 end
+-- Also usable by future maintenance jobs. Testing this public primitive exercises
+-- the REAL navigator, trail journal and resource scanner together.
+function M.searchTerrain(resource,needed)
+ state.assertSafe()
+ recoverExploration()
+ return scan(resource,needed)
+end
 function M.run(jobId)
  state.assertSafe()
  local current=state.data.bootstrap
