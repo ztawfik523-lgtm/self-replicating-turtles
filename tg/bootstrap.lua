@@ -178,8 +178,9 @@ local SHAFT_SAFE={
  ['minecraft:granite']=true,['minecraft:diorite']=true,
  ['minecraft:andesite']=true,['minecraft:tuff']=true
 }
-local function probeCobble()
+local function probeCobble(goal)
  local route=assert(state.data.forageTrail,'Shaft requires active forage route')
+ goal=goal or 8
  local p,h=state.data.pose,state.data.bootstrap.home
  if p.y~=h.y or math.abs(p.x-h.x)+math.abs(p.z-h.z)<2 then return end
  local checkpoint=#route.moves
@@ -190,14 +191,14 @@ local function probeCobble()
   for _,name in ipairs(caps) do
    -- Keep the eight cobble needed for the actual furnace, never sacrifice it
    -- merely to cover an otherwise exhausted shaft.
-   if count(name)>(name=='minecraft:cobblestone' and 8 or 0) then
+   if count(name)>(name=='minecraft:cobblestone' and goal or 0) then
     return name
    end
   end
  end
  for _=1,SHAFT do
   local extra=(capMaterial() and 0 or 1)
-  if count('minecraft:cobblestone')>=8+extra then break end
+  if count('minecraft:cobblestone')>=goal+extra then break end
   local below=block('down')
   if not below or not SHAFT_SAFE[below] then break end
   if not fuel.ensure(2*(#route.moves+1)+RESERVE+8) then break end
@@ -277,7 +278,7 @@ local function scan(resource,needed)
       math.abs(p.x-h.x)+math.abs(p.z-h.z)>=2 and SHAFT_SAFE[ground] then
     visited[key]=true
     shafts=shafts+1
-    probeCobble()
+    probeCobble(needed)
    end
   end
   return true
@@ -716,4 +717,58 @@ function M.woodCycle(jobId)
  return true
 end
 
+
+function M.materialCycle(jobId)
+ state.assertSafe()
+ assert(state.data.bootstrap and state.data.bootstrap.complete,
+  'Base not established')
+ assert(type(jobId)=='string','Missing material job ID')
+ if state.data.lastMaterialJob==jobId then return true end
+ recoverExploration()
+ local running=state.data.materialCycle
+ assert(not running or running.jobId==jobId,
+  'Different material job is still in progress')
+ atHome()
+ assert(block('down')=='minecraft:chest' and block('front')=='minecraft:furnace',
+  'Material maintenance needs original chest and furnace')
+ assert(not state.data.processing and not state.data.manufacture
+  and not state.data.birth,'Worksite busy')
+ if not running then
+  state.data.materialCycle={jobId=jobId,stage='collect'}
+  state.save()
+ end
+ local previous=turtle.getSelectedSlot()
+ local chest=assert(peripheral.wrap('bottom'),'Storage unavailable')
+ local stored=assert(chest.list(),'Cannot inspect chest inventory')
+ local occupied,free=0,0
+ for _,item in pairs(stored) do
+  if item and item.count and item.count>0 then occupied=occupied+1 end
+ end
+ for i=1,16 do if not detail(i) then free=free+1 end end
+ assert(occupied<=free,'Not enough slots to retrieve mineral stock safely')
+ if next(stored) then factory.collect() end
+ if count('minecraft:sand')<6 then
+  state.data.materialCycle.stage='gather_sand'
+  state.save()
+  scan('sand',6)
+ end
+ assert(count('minecraft:sand')>=6,'Could not replenish six raw sand')
+ local needed=math.max(0,14-count('minecraft:stone'))
+ if count('minecraft:cobblestone')<needed then
+  state.data.materialCycle.stage='gather_stone'
+  state.save()
+  scan('cobble',needed)
+ end
+ assert(count('minecraft:stone')+count('minecraft:cobblestone')>=14,
+  'Insufficient basic stone stock for future workshop')
+ atHome()
+ state.data.materialCycle.stage='deposit'
+ state.save()
+ deposit()
+ turtle.select(previous)
+ state.data.lastMaterialJob=jobId
+ state.data.materialCycle=nil
+ state.save()
+ return true
+end
 return M
