@@ -30,6 +30,8 @@ jobs:
         run: lua5.2 tests/bootstrap_m2_sim.lua
       - name: Verify real charcoal furnace uses plank fuel
         run: lua5.2 tests/charcoal_fuel_sim.lua
+      - name: Verify charcoal also refuels turtle movement
+        run: lua5.2 tests/fuel_refuel_sim.lua
       - name: Test M2 safe abort for missing trees and fuel
         run: lua5.2 tests/bootstrap_m2_safety.lua
       - name: Verify M2 furnace restart and inventory-commit safety
