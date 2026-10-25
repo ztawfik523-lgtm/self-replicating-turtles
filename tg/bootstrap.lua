@@ -99,525 +99,17 @@ local function mineLogColumn()
   assert(nav.up(),'Failed to rise inside tree trunk')
   ascended=ascended+1
  end
- -- Harvest a bounded amount of SAME-TREE foliage so dropped saplings
- -- can be replanted immediately. Vanilla leaf drops are probabilistic; this
- -- is an attempt at renewability, NOT a guaranteed infinite wood source.
- local leaves=first:gsub('_log
- print('Base: harvested logs in inventory: '..tostring(count(first)))
- -- If a sapling was collected during harvesting, replace the trunk.
- local sapling=first:gsub('_log$','_sapling')
- -- Keep replanted saplings away from the permanent furnace cell at home.
- local p,h=state.data.pose,state.data.bootstrap.home
- local worksiteFace=(p.x==h.x and p.y==h.y and p.z==h.z and p.dir==h.dir)
- if not worksiteFace and selectItem(sapling) and not turtle.detect() then
-  turtle.place()
- end
- turtle.select(old)
- return true
-end
--- The explorer never destroys unknown blocks and never crosses a knowingly
--- unsupported ledge. Successful movement is journaled by nav.lua along with
--- the tracked pose. Rewind works after ordinary reboots; an interrupted step
--- leaves state.pending set and is intentionally NOT auto-reconciled.
-local reverse={forward='back',back='forward',up='down',down='up'}
-local function face(dir)
- for _=1,4 do
-  if state.data.pose.dir==dir then return end
-  assert(nav.right(),'Failed to restore exploration heading')
- end
- error('Could not face planned exploration direction')
-end
-local function rewindTrail(depth)
- local trail=assert(state.data.forageTrail,'No saved exploration route')
- depth=depth or 0
- assert(depth>=0 and depth<=#trail.moves,'Invalid return depth')
- while #trail.moves>depth do
-  local step=trail.moves[#trail.moves]
-  assert(step and reverse[step.action],'Malformed exploration breadcrumb')
-  face(step.dir)
-  assert(fuel.ensure(#trail.moves+RESERVE+4),
-   'Not enough fuel to safely retrace exploration breadcrumbs')
-  local before=#trail.moves
-  local ok,why=nav[reverse[step.action]]()
-  assert(ok,'Cannot retrace '..step.action..' step: '..tostring(why))
-  assert(#trail.moves==before-1,
-   'Breadcrumb stack did not shrink after returning')
- end
-end
-local function recoverExploration()
- local trail=state.data.forageTrail
- if not trail then return end
- assert(trail.origin and type(trail.moves)=='table',
-  'Exploration recovery data incomplete; refusing unsafe navigation')
- print('Base: recovering '..#trail.moves..' saved exploration steps')
- rewindTrail(0)
- face(trail.origin.dir)
- assert(samePose(state.data.pose,trail.origin),
-  'Saved explorer route did not return to its original home')
- state.data.forageTrail=nil
- state.save()
-end
-local function scan(resource,needed)
- local function have()
-  if resource=='wood' then
-   local _,n=matching('log');return n
-  elseif resource=='sand' then return count('minecraft:sand') end
- end
- assert(resource=='wood' or resource=='sand','Unsupported forage target')
- atHome()
- assert(not state.data.forageTrail,'An old exploration route must be recovered first')
- local home=state.data.bootstrap.home
- state.data.forageTrail={origin={x=home.x,y=home.y,z=home.z,dir=home.dir},moves={}}
- state.save()
- local trail=state.data.forageTrail
- local before=have()
- -- Movement budget includes retracing every successful outbound step and
- -- the reserved fuel needed to ascend/descend a harvested tree.
- local function walk()
-  if have()>=needed then return false end
-  if not fuel.ensure(2*(#trail.moves+5)+TREE_HEIGHT*2+RESERVE) then
-   return false
-  end
-  local ahead=block('front')
-  if resource=='wood' and ahead
-      and ahead:match('^minecraft:[%a_]+_log$') then
-   mineLogColumn()
-  elseif resource=='sand' and ahead=='minecraft:sand' then
-   for _=1,6 do
-    if have()>=needed or block('front')~='minecraft:sand' then break end
-    if not turtle.dig() then break end
-   end
-  end
-  if not safeFront() then return false end
-  local depth=#trail.moves
-  local ok=nav.forward()
-  if not ok then return false end
-  -- The target may have been an exposed cliff edge or a fluid surface.
-  -- Retreat immediately; never continue further into unsupported terrain.
-  local ground=block('down')
-  if not ground or ground=='minecraft:lava' or ground=='minecraft:water' then
-   rewindTrail(depth)
-   return false
-  end
-  if resource=='sand' and ground=='minecraft:sand' and have()<needed then
-   assert(turtle.digDown(),'Could not gather sand below explored path')
-  end
-  return true
- end
- local function detour(heading,dist)
-  -- Follow either side of a barrier for up to six tiles before trying to
-  -- rejoin the original ray. Each failed branch retraces EXACTLY to the
-  -- checkpoint; this handles several consecutive obstructed front blocks.
-  local maxAdvance=math.min(6,SEARCH-dist)
-  if maxAdvance<1 then return nil end
-  local startDepth=#trail.moves
-  for _,side in ipairs({(heading+1)%4,(heading+3)%4}) do
-   face(side)
-   if walk() then
-    face(heading)
-    for advanced=1,maxAdvance do
-     if not walk() then break end
-     face((side+2)%4)
-     if walk() then
-      face(heading)
-      return advanced
-     end
-     face(heading)
-    end
-   end
-   rewindTrail(startDepth)
-   face(heading)
-  end
-  return nil
- end
- -- Survey four compass rays, bypassing short static barriers whenever
- -- possible. Every side excursion returns to the original ray before the
- -- next forward step; the full physical route is retraced from breadcrumbs.
- for i=0,3 do
-  local heading=(home.dir+i)%4
-  face(heading)
-  local dist=0
-  while dist<SEARCH and have()<needed do
-   if walk() then
-    dist=dist+1
-   else
-    local advanced=detour(heading,dist)
-    if not advanced then break end
-    dist=dist+advanced
-   end
-  end
-  rewindTrail(0)
-  face(home.dir)
-  assert(samePose(state.data.pose,home),'Explorer did not return to base')
-  if have()>=needed then break end
- end
- state.data.forageTrail=nil
- state.save()
- atHome()
- return have()-before,have()
-end
-local function cleanBeforeCraft(wood)
- -- The first chest must be crafted before a mixed inventory is accumulated.
- -- Preserve the matching logs and discard only wild drops (leaves, saplings,
- -- dirt, sticks). Starting turtle inventory is checked before gathering.
- for i=1,16 do local d=detail(i)
-  if d and d.name~=wood then
-   turtle.select(i)
-   assert(turtle.drop(),'Cannot clear incidental foraging item '..d.name)
-  end
- end
-end
--- Recoverable chestless crafting: retries observe what was physically
--- produced, instead of harvesting extra trees or discarding finished planks.
-local function firstChest()
- if block('down')=='minecraft:chest' then return end
- assert(type(turtle.craft)=='function','First turtle needs crafting upgrade equipped')
- local original=turtle.getSelectedSlot()
- if count('minecraft:chest')==0 then
-  local planks,plankCount=matching('planks')
-  if not planks or plankCount<8 then
-   local wood,logs=matching('log')
-   assert(wood and logs>=4,'Need at least four same-type logs before first chest')
-   assert(logs<=16,'Oversized log stack for first-chest craft')
-   cleanBeforeCraft(wood)
-   for i=2,16 do
-    if detail(i) then
-     turtle.select(i)
-     assert(turtle.transferTo(1) and not detail(i),
-      'Cannot consolidate bootstrap logs')
-    end
-   end
-   assert(detail(1) and detail(1).name==wood,'Log staging failed')
-   mark('convert_first_logs')
-   turtle.select(16)
-   -- turtle.craft(limit) counts RECIPE STEPS, not output items:
-   -- each log step yields four planks.
-   local ok,why=turtle.craft(logs)
-   assert(ok,'Cannot craft first planks: '..tostring(why))
-   planks=wood:gsub('_log$','_planks')
-   assert(count(planks)>=8,'Log conversion produced too few planks')
-  else
-   -- The prior run may have completed log conversion or been interrupted
-   -- midway through arranging the 3x3 chest pattern.
-   mark('resume_first_planks')
-  end
-  cleanBeforeCraft(planks)
-  -- Reconstruct the recipe from physical inventory every time. This handles
-  -- all partial item transfers between slots without replaying log crafting.
-  for i=2,16 do
-   if detail(i) then
-    turtle.select(i)
-    assert(turtle.transferTo(1) and not detail(i),
-     'Cannot consolidate bootstrap planks')
-   end
-  end
-  assert(detail(1) and detail(1).name==planks and
-   detail(1).count>=8,'At least eight matching planks needed')
-  mark('craft_first_chest')
-  for _,slot in ipairs({2,3,5,7,9,10,11}) do
-   turtle.select(1)
-   assert(turtle.transferTo(slot,1),'Cannot prepare chest recipe')
-  end
-  turtle.select(16)
-  local valid,why=turtle.craft(0)
-  assert(valid,'First chest pattern invalid: '..tostring(why))
-  local ok,err=turtle.craft(1)
-  assert(ok,'First chest crafting failed: '..tostring(err))
-  assert(count('minecraft:chest')>=1,'Crafted chest output missing')
- else
-  -- Crash after successful chest craft: do not spend any more wood.
-  mark('resume_placed_chest_item')
- end
- local down=block('down')
- assert(not down or ROCK[down] or SAFE[down],
-  'Unsafe first chest placement over '..tostring(down))
- if down then assert(turtle.digDown(),'Cannot dig space for first chest') end
- assert(selectItem('minecraft:chest'),'First chest disappeared')
- mark('place_first_chest')
- local ok,why=turtle.placeDown()
- assert(ok,'Cannot place first chest: '..tostring(why))
- assert(block('down')=='minecraft:chest','First chest not detected')
- turtle.select(original)
-end
-local function mineCobble()
- if count('minecraft:cobblestone')>=8 then return end
- atHome()
- assertFuel(2*SHAFT+16)
- -- Offset the shaft from the storage block, so no downward digging occurs
- -- in the home cell occupied by the chest.
- local moved=0
- for _=1,2 do
-  assert(safeFront(),'No safe access from home to planned mining shaft')
-  assert(nav.forward(),'Cannot approach shallow stone shaft')
-  moved=moved+1
- end
- local depth=0
- for _=1,SHAFT do
-  if count('minecraft:cobblestone')>=8 then break end
-  local n=block('down')
-  if not n or not ROCK[n] then break end
-  assert(turtle.digDown(),'Cannot mine shaft material: '..n)
-  assert(nav.down(),'Cannot descend cleared shaft')
-  depth=depth+1
- end
- for _=1,depth do assert(nav.up(),'Cannot climb back up the shaft') end
- for _=1,moved do assert(nav.back(),'Cannot return from shallow shaft') end
- atHome()
- assert(count('minecraft:cobblestone')>=8,
-  'Shallow shaft lacked eight cobblestone: safer to relocate than drill blindly')
-end
-local FURNACE={
- [1]='minecraft:cobblestone',[2]='minecraft:cobblestone',
- [3]='minecraft:cobblestone',[5]='minecraft:cobblestone',
- [7]='minecraft:cobblestone',[9]='minecraft:cobblestone',
- [10]='minecraft:cobblestone',[11]='minecraft:cobblestone'}
-local function furnace()
- if block('front')=='minecraft:furnace' then return end
- if count('minecraft:furnace')==0 then
-  -- Save intent before craftStep moves ingredients into the chest.
-  -- A reboot may occur after those items are staged but before output.
-  mark('craft_bootstrap_furnace')
-  factory.craftStep('bootstrap_furnace',FURNACE,'minecraft:furnace')
- end
- local n=block('front')
- assert(not n or ROCK[n] or SAFE[n],
-  'Unsafe furnace placement over '..tostring(n))
- if n then assert(turtle.dig(),'Could not clear furnace front cell') end
- assert(selectItem('minecraft:furnace'),'Furnace item missing')
- assert(turtle.place(),'Furnace placement failed')
- assert(block('front')=='minecraft:furnace','Furnace missing after placement')
-end
-local function deposit()
- -- Keep charcoal for future turtle refueling. Store mineral products and
- -- leftover logs/planks where the central planner can observe them.
- local keep={'minecraft:charcoal','minecraft:coal'}
- local retain={};for _,name in ipairs(keep) do retain[name]=true end
- local old=turtle.getSelectedSlot()
- for i=1,16 do local d=detail(i)
-  if d and not retain[d.name] then
-   turtle.select(i)
-   assert(turtle.dropDown(),'Storage chest full; cannot deposit '..d.name)
-   -- dropDown can return success for a PARTIAL transfer if the chest filled.
-   -- Never label a stockpile complete while materials remain in the turtle.
-   assert(turtle.getItemCount(i)==0,
-    'Storage chest only accepted part of '..d.name..'; retry after making room')
-  end
- end
- turtle.select(old)
-end
--- Also usable by future maintenance jobs. Testing this public primitive exercises
--- the REAL navigator, trail journal and resource scanner together.
-function M.searchTerrain(resource,needed)
- state.assertSafe()
- recoverExploration()
- return scan(resource,needed)
-end
-function M.run(jobId)
- state.assertSafe()
- local current=state.data.bootstrap
- if current and current.complete then return true end
- if not current then
-  local hasInventory=false
-  for i=1,16 do if detail(i) then hasInventory=true;break end end
-  assert(not hasInventory,'M2 initial turtle must have empty inventory; load movement fuel into turtle first')
-  assert(type(turtle.craft)=='function',
-   'M2 needs a Mining + Crafting Turtle, not a Mining-only turtle')
-  assert(fuel.level()>=140,'M2 starts with at least 140 movement fuel loaded')
-  state.data.bootstrap={stage='start',home={
-   x=state.data.pose.x,y=state.data.pose.y,z=state.data.pose.z,
-   dir=state.data.pose.dir},jobId=jobId,complete=false}
-  state.save()
- else
-  assert(not current.jobId or current.jobId==jobId,
-    'Another base job is already in progress')
- end
- -- A normal reboot between movements is recoverable using saved steps.
- -- state.assertSafe still refuses any interrupted / physically ambiguous move.
- recoverExploration()
- atHome()
- if block('down')~='minecraft:chest' then
-  -- An interrupted conversion may already have yielded planks or a chest.
-  -- Avoid a new forest trip unless there is insufficient material to craft.
-  local _,plankCount=matching('planks')
-  if count('minecraft:chest')==0 and plankCount<8 then
-   mark('gather_first_wood')
-   local _,n=scan('wood',4)
-   assert(n>=4,'No accessible tree in local search; choose a wooded start area')
-  end
-  mark('craft_and_place_first_chest')
-  firstChest()
- end
- if count('minecraft:sand')<6 then
-  mark('gather_sand')
-  scan('sand',6)
-  assert(count('minecraft:sand')>=6,
-   'No six sand near home; relocate base near a river or sandy terrain')
- end
- -- If an interrupted furnace recipe left cobble or other inputs in the
- -- temporary chest, recover them BEFORE checking whether to mine more stone.
- -- This is safe to repeat: collect() is a no-op for an empty chest.
- local stage=state.data.bootstrap.stage
- if stage=='craft_bootstrap_furnace' or stage=='recover_bootstrap_furnace' then
-  assert(block('down')=='minecraft:chest',
-   'Cannot recover first furnace crafting without the base chest')
-  mark('recover_bootstrap_furnace')
-  factory.collect()
-  mark('furnace_materials_recovered')
- end
- -- A carried or placed furnace has already consumed construction stone.
- -- Do not remine the same eight blocks during an interrupted charcoal run.
- if block('front')~='minecraft:furnace' and
-     count('minecraft:furnace')==0 and
-     count('minecraft:cobblestone')<8 then
-  mark('gather_cobblestone')
-  mineCobble()
- end
- if block('front')~='minecraft:furnace' then
-  mark('craft_and_place_furnace')
-  furnace()
- end
- -- A power cut during smelting leaves inputs/outputs in the actual furnace.
- -- Reconcile that physical batch FIRST; do not harvest another tree or start
- -- another batch just because the turtle's inventory lacks charcoal.
- if state.data.processing then
-  mark('resume_first_charcoal')
-  local ok,reason=process.resume()
-  assert(ok,'Cannot resume interrupted charcoal: '..tostring(reason))
- end
- if count('minecraft:charcoal')==0 then
-  -- A plank lights the initial batch. Reuse harvested logs after recovery,
-  -- gathering another tree only when the turtle genuinely lacks fuel inputs.
-  local _,n=matching('log')
-  if n<1 then
-   mark('gather_charcoal_logs')
-   _,n=scan('wood',4)
-  end
-  assert(n>=1,'Need another tree for charcoal; no accessible logs')
-  mark('smelt_first_charcoal')
-  process.run('charcoal')
- end
- atHome()
- assert(block('down')=='minecraft:chest' and
-        block('front')=='minecraft:furnace','Base infrastructure missing')
- assert(count('minecraft:charcoal')>=1,'Charcoal production did not generate fuel')
- mark('store_materials')
- deposit()
- current=state.data.bootstrap
- current.complete=true
- current.stage='complete'
- state.save()
- print('Base: complete; chest, furnace and charcoal available at home')
- return true
-end
--- Reusable fuel loop after the first base has been established.
--- Job ID is recorded after successful processing to prevent duplicate batches
--- if a network response is lost after the furnace completes.
-function M.fuelCycle(jobId)
- state.assertSafe()
- local home=assert(state.data.bootstrap,'No initialized M2 base')
- assert(home.complete,'Fuel maintenance requires a completed base')
- assert(jobId and type(jobId)=='string','Fuel job ID required')
- if state.data.lastFuelJob==jobId then return true end
- recoverExploration()
- if state.data.fuelCycle then
-  assert(state.data.fuelCycle.jobId==jobId,
-   'Finish the interrupted fuel cycle before accepting another job')
- end
- atHome()
- assert(block('down')=='minecraft:chest',
-  'Base storage is missing; refuse to stage items in open air')
- assert(block('front')=='minecraft:furnace',
-  'Base furnace no longer faces the turtle')
- local old=turtle.getSelectedSlot()
- if not state.data.fuelCycle then
-  state.data.fuelCycle={jobId=jobId,stage='prepare'}
-  state.save()
- end
- -- Recover the furnace transaction BEFORE retrieving items from its staging
- -- chest; otherwise a restart may remove unprocessed furnace inputs.
- if state.data.processing then
-  state.data.fuelCycle.stage='recover_smelt'
-  state.save()
-  local ok,reason=process.resume()
-  assert(ok,'Previous charcoal processing is paused: '..tostring(reason))
- end
- local chest=peripheral.wrap('bottom')
- assert(chest and type(chest.list)=='function','Cannot inspect the base storage')
- local stored=chest.list()
- assert(type(stored)=='table','Base storage inventory not readable')
- if next(stored) then
-  local storedSlots,freeSlots=0,0
-  for _,item in pairs(stored) do
-   if item and (item.count or 0)>0 then storedSlots=storedSlots+1 end
-  end
-  for i=1,16 do if not detail(i) then freeSlots=freeSlots+1 end end
-  -- Conservatively reserve a complete turtle slot for each chest stack.
-  -- Stop before moving any items if there is not enough room.
-  assert(storedSlots<=freeSlots,
-   ('Base chest has %d stacks but only %d empty turtle slots; '..
-    'free inventory space before fuel maintenance'):format(storedSlots,freeSlots))
-  factory.collect()
- end
- -- Refueling the turtle is part of the fuel cycle, not a player task.
- -- Try to restore a reasonable travel budget before considering how many
- -- charcoal items remain. This can deliberately trigger a replacement batch.
- if fuel.level()<120 then fuel.ensure(120) end
- if count('minecraft:charcoal')+count('minecraft:coal')>=3 then
-  deposit()
-  turtle.select(old)
-  -- Completion is committed only after the material was actually stored.
-  state.data.lastFuelJob=jobId
-  state.data.fuelCycle=nil
-  state.save()
-  return true
- end
- state.data.fuelCycle.stage='harvest_more_wood'
- state.save()
- local wood,logs=matching('log')
- if not wood or logs<3 then
-  scan('wood',4)
-  wood,logs=matching('log')
- end
- assert(wood and logs>=2,'Insufficient accessible trees for another fuel batch')
- local plankName=wood:gsub('_log$','_planks')
- if count(plankName)<math.min(logs,4) and
-     count('minecraft:coal')+count('minecraft:charcoal')==0 then
-  state.data.fuelCycle.stage='craft_furnace_fuel'
-  state.save()
-  factory.craftStep('wooden_fuel_planks',{[1]=wood},plankName)
- end
- assert(count(wood)>=1,'No logs left to smelt after obtaining furnace fuel')
- state.data.fuelCycle.stage='make_charcoal'
- state.save()
- if state.data.processing then
-  local ok,reason=process.resume()
-  assert(ok,'Cannot finish interrupted charcoal: '..tostring(reason))
- else
-  process.run('charcoal')
- end
- atHome()
- assert(count('minecraft:charcoal')>=1,
-  'Charcoal fuel cycle finished without recovering charcoal')
- deposit()
- turtle.select(old)
- state.data.lastFuelJob=jobId
- state.data.fuelCycle=nil
- state.save()
- print('Base: charcoal replenished and surplus stored')
- return true
-end
-return M
-,'_leaves')
+ -- Opportunistically gather saplings from a few leaf faces around the
+ -- original tree canopy. Sapling drops are not guaranteed.
+ local leaves=first:gsub('_log$','_leaves')
  local layers=math.min(3,ascended+1)
  for layer=1,layers do
   for _=1,4 do
-   if block('front')==leaves then
-    turtle.dig() -- an unsuccessful leaf dig is non-fatal
-   end
+   if block('front')==leaves then turtle.dig() end
    assert(nav.right(),'Unable to inspect surrounding tree foliage')
   end
   if layer<layers then
-   assert(nav.down(),'Cannot descend under inspected tree foliage')
+   assert(nav.down(),'Cannot descend under tree canopy')
    ascended=ascended-1
   end
  end
@@ -725,26 +217,31 @@ local function scan(resource,needed)
   return true
  end
  local function detour(heading,dist)
-  if dist+2>SEARCH then return false end
+  -- Test either side for a path around a narrow (up to six-block-long)
+  -- obstruction. Never tunnel through the protected original front blocks.
+  local maxAdvance=math.min(6,SEARCH-dist)
+  if maxAdvance<1 then return nil end
   local startDepth=#trail.moves
   for _,side in ipairs({(heading+1)%4,(heading+3)%4}) do
    face(side)
-   local stepped=walk()
-   if stepped then
+   if walk() then
     face(heading)
-    local first=walk()
-    local second=first and walk()
-    if second then
+    for advanced=1,maxAdvance do
+     if not walk() then break end
      face((side+2)%4)
-     if walk() then face(heading);return true end
+     if walk() then
+      face(heading)
+      return advanced
+     end
+     face(heading)
     end
    end
    rewindTrail(startDepth)
    face(heading)
   end
-  return false
+  return nil
  end
- -- Survey four compass rays, bypassing a one-block-wide obstruction whenever
+ -- Survey four compass rays, bypassing short obstructions whenever
  -- possible. Every side excursion returns to the original ray before the
  -- next forward step; the full physical route is retraced from breadcrumbs.
  for i=0,3 do
@@ -754,10 +251,10 @@ local function scan(resource,needed)
   while dist<SEARCH and have()<needed do
    if walk() then
     dist=dist+1
-   elseif detour(heading,dist) then
-    dist=dist+2
    else
-    break
+    local advanced=detour(heading,dist)
+    if not advanced then break end
+    dist=dist+advanced
    end
   end
   rewindTrail(0)
