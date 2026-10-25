@@ -129,15 +129,10 @@ function M.handle(job)
       (previous.result and previous.result.ok) then
     return previous.result
    end
-   if job.action=='birth' and not state.data.birth then
-    return previous.result
-   end
-   if job.action=='bootstrap' and not state.data.bootstrap then
-    return previous.result
-   end
-   if job.action=='fuel_cycle' and not state.data.fuelCycle then
-    return previous.result
-   end
+   -- A failure during preflight leaves no job state, but is safe to retry
+   -- with the SAME ID once the controller observes new resources or fuel.
+   -- Already-completed work is independently deduplicated via lastBirthJob,
+   -- bootstrap.complete, and lastFuelJob.
    print('Retrying paused '..job.action..' '..job.id)
   end
   -- Birth is designed to resume from observed resources and lineage count.
@@ -155,7 +150,14 @@ function M.handle(job)
  writeJournal({id=job.id,status='started',action=job.action,args=job.args})
  local ok,result=pcall(execute,job)
  local out={type='result',id=job.id,ok=ok}
- if ok then out.data=result else out.error=tostring(result) end
+ if ok then
+  out.data=result
+ else
+  out.error=tostring(result)
+  -- Controller must not decide another job using a stale, pre-error view.
+  local observed,view=pcall(snapshot)
+  if observed then out.data={snapshot=view} end
+ end
  writeJournal({id=job.id,status='done',result=out})
  return out
 end

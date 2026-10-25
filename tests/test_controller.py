@@ -316,3 +316,53 @@ def test_m2_full_charcoal_stock_still_refuels_turtle_when_movement_low(tmp_path)
     assert next_job(rec) is None  # stocked and moving safely
     rec.last_snapshot["fuel"]=0
     assert next_job(rec)[0]=="fuel_cycle"
+
+def test_failed_partial_bootstrap_pauses_without_losing_original_job_id(tmp_path):
+    p=tmp_path/"db.json"
+    db=Colony(p);rec=db.register(hello())
+    job=db.queue(7,"bootstrap");db.sent(7,job.id)
+    after={"bootstrap_enabled":True,"bootstrap_done":False,
+           "bootstrap_stage":"gather_sand","fuel":270,
+           "inventory":[{"name":"minecraft:oak_planks","count":8}],
+           "front":None,"bottom":"minecraft:chest"}
+    assert db.complete(7,job.id,{"id":job.id,"ok":False,
+                 "error":"No nearby sand","data":{"snapshot":after}})
+    assert rec.outstanding and rec.outstanding.id==job.id
+    assert rec.outstanding.state=="paused"
+    assert rec.last_snapshot==after
+    assert next_job(rec) is None
+    assert not db.record_snapshot(7,dict(after))
+    assert rec.outstanding.state=="paused"
+    reboot=Colony(p)
+    rec=reboot.register({"type":"hello","id":7,"generation":1,
+         "snapshot":after})
+    hello_msg={"journal":{"id":job.id,"status":"done",
+                          "result":{"id":job.id,"ok":False}},
+               "snapshot":after}
+    assert reboot.reconcile_hello(rec,hello_msg)=="paused"
+    updated=dict(after,inventory=[{"name":"minecraft:sand","count":6},
+                                  {"name":"minecraft:oak_planks","count":8}])
+    assert reboot.record_snapshot(7,updated)
+    assert rec.outstanding.id==job.id and rec.outstanding.state=="queued"
+    assert reboot.counter==1
+
+def test_failed_birth_preflight_does_not_allocate_another_job_id(tmp_path):
+    db=Colony(tmp_path/"db.json");rec=db.register(hello())
+    job=db.queue(7,"birth");db.sent(7,job.id)
+    failed={"inventory":[],"fuel":200,"front":None,"bottom":None}
+    assert db.complete(7,job.id,{"id":job.id,"ok":False,"error":"missing table",
+                                 "data":{"snapshot":failed}})
+    assert rec.outstanding.id==job.id
+    assert rec.outstanding.state=="paused"
+    assert not db.record_snapshot(7,failed)
+    updated=dict(failed,inventory=[{"name":"minecraft:crafting_table","count":1}])
+    assert db.record_snapshot(7,updated)
+    assert rec.outstanding.id==job.id and rec.outstanding.state=="queued"
+
+def test_legacy_smelt_error_can_start_a_new_job_once_reconciled(tmp_path):
+    db=Colony(tmp_path/"db.json");rec=db.register(hello())
+    job=db.queue(7,"process",{"kind":"iron"})
+    db.sent(7,job.id)
+    assert db.complete(7,job.id,{"id":job.id,"ok":False,"error":"blocked"})
+    assert rec.outstanding is None
+    assert len(rec.history)==1

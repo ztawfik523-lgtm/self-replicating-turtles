@@ -89,8 +89,11 @@ class Host:
                     self.colony.sent(rec.turtle_id, job.id)
                 msg = json.loads(await asyncio.wait_for(websocket.recv(), timeout=1200))
                 if msg.get("type") == "snapshot":
-                    rec.last_snapshot = msg.get("snapshot") or {}
-                    self.colony.save()
+                    resumed = self.colony.record_snapshot(
+                        rec.turtle_id, msg.get("snapshot") or {})
+                    if resumed:
+                        LOG.info("Turtle %d resuming paused job %s after change",
+                                 rec.turtle_id, rec.outstanding.id)
                     self.report_if_waiting(rec)
                     await websocket.send(json.dumps({"type": "ack",
                                                      "shortages": shortages(rec.last_snapshot)}))

@@ -12,6 +12,7 @@ class Job:
     args: dict[str, Any] = field(default_factory=dict)
     state: str = "queued"
     result: dict[str, Any] | None = None
+    failure_signature: str | None = None
 
     def message(self):
         return {"type": "job", "id": self.id, "action": self.action, "args": self.args}
@@ -24,6 +25,20 @@ class TurtleRecord:
     outstanding: Job | None = None
     history: list[dict[str, Any]] = field(default_factory=list)
     blocked: dict[str, str] = field(default_factory=dict)
+
+RESUMABLE_JOBS = {"birth", "bootstrap", "fuel_cycle"}
+
+def progress_signature(view: dict[str, Any]) -> str:
+    """Stable physical observations determining whether to retry paused work.
+
+    Ignore harmless heartbeat/time changes; never invent a new job ID just
+    because fuel or the active bootstrap stage changed after an error.
+    """
+    fields = ("inventory", "storage", "storage_observed", "front", "bottom",
+              "fuel", "bootstrap_stage", "bootstrap_done", "processing",
+              "birth", "fuel_cycle")
+    return json.dumps({name: view.get(name) for name in fields},
+                      sort_keys=True, separators=(",", ":"))
 
 class Colony:
     def __init__(self, path: str | Path):
@@ -80,7 +95,12 @@ class Colony:
             return "idle"
         journal = hello.get("journal") or {}
         if journal.get("id") == job.id and journal.get("status") == "done":
-            self.complete(rec.turtle_id, job.id, journal.get("result") or {})
+            if job.state != "paused":
+                self.complete(rec.turtle_id, job.id, journal.get("result") or {})
+            if rec.outstanding and rec.outstanding.state == "paused":
+                changed = self.record_snapshot(rec.turtle_id,
+                                               hello.get("snapshot") or {})
+                return "resend_changed" if changed else "paused"
             return "complete"
         # Re-send the SAME ID on reconnect. A sent job might never have
         # arrived; the turtle journal handles duplicates if it did.
@@ -92,6 +112,20 @@ class Colony:
         job.state = "queued"
         self.save()
         return "resend_pending"
+
+    def record_snapshot(self, ident: int, snapshot: dict[str, Any]) -> bool:
+        """Retry a paused multi-stage job only after observed conditions change."""
+        rec = self.turtles[ident]
+        rec.last_snapshot = snapshot
+        job = rec.outstanding
+        changed = False
+        if job and job.state == "paused":
+            new_key = progress_signature(snapshot)
+            if job.failure_signature is not None and new_key != job.failure_signature:
+                job.state = "queued"
+                changed = True
+        self.save()
+        return changed
 
     def sent(self, ident: int, job_id: str):
         job = self.turtles[ident].outstanding
@@ -117,6 +151,13 @@ class Colony:
                 rec.last_snapshot = view
         if not result.get("ok"):
             rec.blocked[job.action] = job.args.get("snapshot_key", "unknown")
+            if job.action in RESUMABLE_JOBS:
+                # Keep the SAME job ID. New IDs conflict with the turtle's
+                # persisted bootstrap/birth/fuel-cycle ID after partial work.
+                job.state = "paused"
+                job.failure_signature = progress_signature(rec.last_snapshot)
+                self.save()
+                return True
         else:
             rec.blocked.pop(job.action, None)
         rec.history.append({"id": job.id, "action": job.action,
