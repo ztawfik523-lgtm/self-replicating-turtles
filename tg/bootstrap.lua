@@ -399,29 +399,55 @@ function M.fuelCycle(jobId)
  assert(home.complete,'Fuel maintenance requires a completed base')
  assert(jobId and type(jobId)=='string','Fuel job ID required')
  if state.data.lastFuelJob==jobId then return true end
+ if state.data.fuelCycle then
+  assert(state.data.fuelCycle.jobId==jobId,
+   'Finish the interrupted fuel cycle before accepting another job')
+ end
  atHome()
  assert(block('down')=='minecraft:chest',
   'Base storage is missing; refuse to stage items in open air')
  assert(block('front')=='minecraft:furnace',
   'Base furnace no longer faces the turtle')
  local old=turtle.getSelectedSlot()
- state.data.fuelCycle={jobId=jobId,stage='prepare'}
- state.save()
- local chest=peripheral.wrap('bottom')
- assert(chest and type(chest.list)=='function','Cannot inspect the base storage')
- if next(chest.list()) then factory.collect() end
+ if not state.data.fuelCycle then
+  state.data.fuelCycle={jobId=jobId,stage='prepare'}
+  state.save()
+ end
+ -- Interrupted smelting owns the staging chest until process.resume has
+ -- returned its furnace inputs and outputs. Never collect its items first.
  if state.data.processing then
   state.data.fuelCycle.stage='recover_smelt'
   state.save()
   local ok,reason=process.resume()
   assert(ok,'Previous charcoal processing is paused: '..tostring(reason))
  end
+ local chest=peripheral.wrap('bottom')
+ assert(chest and type(chest.list)=='function','Cannot inspect the base storage')
+ local stored=chest.list()
+ assert(type(stored)=='table','Base storage inventory not readable')
+ if next(stored) then
+  -- Turtle capacity is only 16 slots. Preflight conservatively, assigning
+  -- one vacant turtle slot per occupied chest slot, before moving anything.
+  local storedSlots,freeSlots=0,0
+  for _,item in pairs(stored) do
+   if item and (item.count or 0)>0 then storedSlots=storedSlots+1 end
+  end
+  for i=1,16 do
+   if not detail(i) then freeSlots=freeSlots+1 end
+  end
+  assert(storedSlots<=freeSlots,
+   ('Base chest has %d stacks but only %d empty turtle slots; '..
+    'free inventory space before fuel maintenance'):format(storedSlots,freeSlots))
+  factory.collect()
+ end
  if count('minecraft:charcoal')+count('minecraft:coal')>=3 then
+  -- A successful smelt is not a completed maintenance job until excess
+  -- inventory has actually been returned to safe storage.
+  deposit()
+  turtle.select(old)
   state.data.lastFuelJob=jobId
   state.data.fuelCycle=nil
   state.save()
-  deposit()
-  turtle.select(old)
   return true
  end
  state.data.fuelCycle.stage='harvest_more_wood'
@@ -451,11 +477,11 @@ function M.fuelCycle(jobId)
  atHome()
  assert(count('minecraft:charcoal')>=1,
   'Charcoal fuel cycle finished without recovering charcoal')
+ deposit()
+ turtle.select(old)
  state.data.lastFuelJob=jobId
  state.data.fuelCycle=nil
  state.save()
- deposit()
- turtle.select(old)
  print('Base: charcoal replenished and surplus stored')
  return true
 end
