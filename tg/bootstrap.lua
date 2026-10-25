@@ -663,4 +663,57 @@ function M.fuelCycle(jobId)
  print('Base: charcoal replenished and surplus stored')
  return true
 end
+function M.woodCycle(jobId)
+ state.assertSafe()
+ assert(state.data.bootstrap and state.data.bootstrap.complete,'Base not established')
+ assert(type(jobId)=='string','Missing job ID')
+ if state.data.lastWoodJob==jobId then return true end
+ recoverExploration()
+ local running=state.data.woodCycle
+ assert(not running or running.jobId==jobId,'Different lumber job in progress')
+ atHome()
+ assert(block('down')=='minecraft:chest' and block('front')=='minecraft:furnace',
+  'Worksite chest/furnace required')
+ assert(not state.data.processing and not state.data.manufacture and
+  not state.data.birth,'Worksite busy')
+ local old=turtle.getSelectedSlot()
+ if not running then
+  state.data.woodCycle={jobId=jobId,stage='collect'}
+  state.save()
+ end
+ local chest=assert(peripheral.wrap('bottom'),'Storage unavailable')
+ local stored=assert(chest.list(),'Cannot read storage')
+ local occupied,free=0,0
+ for _,item in pairs(stored) do
+  if item and item.count and item.count>0 then occupied=occupied+1 end
+ end
+ for i=1,16 do if not detail(i) then free=free+1 end end
+ assert(occupied<=free,'Not enough turtle slots to retrieve stored stock')
+ if next(stored) then factory.collect() end
+ local function planks()local _,n=matching('planks');return n end
+ for _=1,12 do
+  if planks()>=14 then break end
+  local wood,logs=matching('log')
+  if not wood or logs<1 then
+   state.data.woodCycle.stage='harvest'
+   state.save()
+   scan('wood',4)
+   wood,logs=matching('log')
+  end
+  assert(wood and logs>0,'No reachable logs for plank reserve')
+  state.data.woodCycle.stage='craft'
+  state.save()
+  factory.craftStep('reserve_planks',{[1]=wood},wood:gsub('_log$','_planks'))
+ end
+ assert(planks()>=14,'Same-species plank reserve remains below 14')
+ state.data.woodCycle.stage='store'
+ state.save()
+ deposit()
+ turtle.select(old)
+ state.data.lastWoodJob=jobId
+ state.data.woodCycle=nil
+ state.save()
+ return true
+end
+
 return M
