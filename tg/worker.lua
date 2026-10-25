@@ -165,15 +165,15 @@ function M.run(url)
  assert(http and http.websocket,'HTTP/WebSocket disabled')
  state.load()
  if url then saveURL(url) else url=configuredURL() end
- -- Reconcile a partially executed birth before connecting. The controller
- -- then receives the completed journal and can acknowledge it exactly once.
+ -- Only replay journal entries that were interrupted by a hard reboot.
+ -- A completed FAILED job must wait for the controller to observe changed
+ -- resources and resend its existing ID; blind reboots must not waste fuel
+ -- resurveying unchanged terrain.
  local interrupted=readJournal()
  local active=state.data.birth
  if active and active.jobId and
     (interrupted.id==active.jobId or not interrupted.id) then
-  if interrupted.status=='started' or
-    (interrupted.status=='done' and
-     interrupted.result and interrupted.result.ok==false) then
+  if interrupted.status=='started' then
    print('Resuming unfinished first birth '..tostring(active.jobId))
    M.handle({id=active.jobId,action='birth',args=interrupted.args or {}})
   end
@@ -183,18 +183,14 @@ function M.run(url)
  local base=state.data.bootstrap
  if base and not base.complete and base.jobId
     and interrupted.id==base.jobId and interrupted.action=='bootstrap' then
-  if interrupted.status=='started' or
-     (interrupted.status=='done' and interrupted.result
-       and interrupted.result.ok==false) then
+  if interrupted.status=='started' then
    M.handle({id=base.jobId,action='bootstrap',args=interrupted.args or {}})
   end
  end
  local cycle=state.data.fuelCycle
  if cycle and cycle.jobId and interrupted.id==cycle.jobId
      and interrupted.action=='fuel_cycle' then
-  if interrupted.status=='started' or
-      (interrupted.status=='done' and interrupted.result
-        and interrupted.result.ok==false) then
+  if interrupted.status=='started' then
    M.handle({id=cycle.jobId,action='fuel_cycle',args=interrupted.args or {}})
   end
  end
