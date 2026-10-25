@@ -237,8 +237,13 @@ def next_job(rec: TurtleRecord) -> tuple[str,dict[str,Any]] | None:
             for name,n in (view.get("storage") or {}).items():
                 stock[name]=stock.get(name,0)+int(n)
             total=stock.get("minecraft:charcoal",0)+stock.get("minecraft:coal",0)
-            if total<3:
-                key=json.dumps({"fuel":total,"pose":view.get("pose"),
+            travel=view.get("fuel")
+            low_movement_fuel=(type(travel) in (int,float) and travel < 120)
+            # Charcoal in a chest is not useful if the turtle itself has run
+            # out of movement fuel. Dispatch a cycle to refuel before travel.
+            if total<3 or low_movement_fuel:
+                key=json.dumps({"stock_fuel":total,"movement_fuel":travel,
+                                "pose":view.get("pose"),
                                 "stage":view.get("bootstrap_stage")},sort_keys=True)
                 if rec.blocked.get("fuel_cycle")!=key:
                     return "fuel_cycle",{"snapshot_key":key}

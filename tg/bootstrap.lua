@@ -66,8 +66,11 @@ local function atHome()
   'Turtle is not at the saved base origin; refusing to guess a return route')
 end
 local function assertFuel(distance)
- assert(fuel.level()>=distance+RESERVE,
-  ('Fuel low: need %d remaining movement units to return safely'):format(distance+RESERVE))
+ local required=distance+RESERVE
+ -- A mature colony must consume its own harvested charcoal to keep moving.
+ -- fuel.ensure burns only the minimum required coal/charcoal from inventory.
+ assert(fuel.ensure(required),
+  ('Fuel low: need %d remaining movement units to return safely'):format(required))
 end
 local function safeFront()
  local n=block('front')
@@ -121,7 +124,9 @@ local function scan(resource,needed)
   local dist=0
   for _=1,SEARCH do
    if have()>=needed then break end
-   if fuel.level()<2*(dist+1)+TREE_HEIGHT*2+RESERVE then break end
+   -- Refuel from collected charcoal when necessary, but never cross the
+   -- point from which the turtle cannot make the bounded return trip.
+   if not fuel.ensure(2*(dist+1)+TREE_HEIGHT*2+RESERVE) then break end
    local current=block('front')
    if resource=='wood' and current
        and current:match('^minecraft:[%a_]+_log$') then
@@ -416,6 +421,10 @@ function M.fuelCycle(jobId)
   local ok,reason=process.resume()
   assert(ok,'Previous charcoal processing is paused: '..tostring(reason))
  end
+ -- Refueling the turtle is part of the fuel cycle, not a player task.
+ -- Try to restore a reasonable travel budget before considering how many
+ -- charcoal items remain. This can deliberately trigger a replacement batch.
+ if fuel.level()<120 then fuel.ensure(120) end
  if count('minecraft:charcoal')+count('minecraft:coal')>=3 then
   state.data.lastFuelJob=jobId
   state.data.fuelCycle=nil

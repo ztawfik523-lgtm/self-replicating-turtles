@@ -44,3 +44,6 @@ jobs:
         run: lua5.2 tests/bootstrap_chest_sim.lua
       - name: Simulate controller installer success, staging failure and rollback
         run: lua5.2 tests/controller_installer_sim.lua
+
+      - name: Verify renewable charcoal refuels turtle movement
+        run: lua5.2 tests/fuel_refuel_sim.lua

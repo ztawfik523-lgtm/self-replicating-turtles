@@ -302,3 +302,17 @@ async def test_invalid_id_does_not_mutate_registry_or_connection_set(tmp_path):
                 await ws.recv()
     assert not host.colony.turtles
     assert not host.connected
+
+def test_m2_full_charcoal_stock_still_refuels_turtle_when_movement_low(tmp_path):
+    db=Colony(tmp_path/"db.json");rec=db.register(hello())
+    rec.last_snapshot={"bootstrap_enabled":True,"bootstrap_done":True,
+        "storage_observed":True,"front":"minecraft:furnace",
+        "bottom":"minecraft:chest","fuel":35,
+        "inventory":[{"name":"minecraft:charcoal","count":4}],
+        "storage":{"minecraft:sand":6}}
+    task=next_job(rec)
+    assert task is not None and task[0]=="fuel_cycle"
+    rec.last_snapshot["fuel"]=180
+    assert next_job(rec) is None  # stocked and moving safely
+    rec.last_snapshot["fuel"]=0
+    assert next_job(rec)[0]=="fuel_cycle"
