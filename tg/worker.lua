@@ -81,7 +81,8 @@ local function snapshot()
   bootstrap_enabled=fs.exists('/tg/bootstrap-opt-in.dat'),
   bootstrap_done=d.bootstrap and d.bootstrap.complete==true or false,
   bootstrap_stage=d.bootstrap and d.bootstrap.stage or nil,
-  fuel_cycle=d.fuelCycle~=nil,wood_cycle=d.woodCycle~=nil}
+  fuel_cycle=d.fuelCycle~=nil,wood_cycle=d.woodCycle~=nil,
+  material_cycle=d.materialCycle~=nil}
 end
 local function execute(job)
  local a=job.action
@@ -107,6 +108,10 @@ local function execute(job)
   require('bootstrap').woodCycle(job.id)
   return {plank_reserve_ready=true,snapshot=snapshot()}
  end
+ if a=='material_cycle' then
+  require('bootstrap').materialCycle(job.id)
+  return {mineral_reserve_ready=true,snapshot=snapshot()}
+ end
  if a=='birth' then
   require('workshop').run(job.id)
   return {child_created=true,snapshot=snapshot()}
@@ -130,7 +135,8 @@ function M.handle(job)
   if previous.status=='done' then
    if (job.action~='birth' and job.action~='bootstrap'
        and job.action~='fuel_cycle'
-       and job.action~='wood_cycle') or
+       and job.action~='wood_cycle'
+       and job.action~='material_cycle') or
       (previous.result and previous.result.ok) then
     return previous.result
    end
@@ -144,7 +150,8 @@ function M.handle(job)
   -- Never retry an arbitrary legacy manufacturing operation blindly.
   if previous.status=='started' and job.action~='birth'
       and job.action~='bootstrap' and job.action~='fuel_cycle'
-      and job.action~='wood_cycle' then
+      and job.action~='wood_cycle'
+      and job.action~='material_cycle' then
    return {type='result',id=job.id,ok=false,
       error='Interrupted operation requires physical reconciliation'}
   end
@@ -205,6 +212,13 @@ function M.run(url)
      and interrupted.action=='wood_cycle' and
      interrupted.status=='started' then
   M.handle({id=wood.jobId,action='wood_cycle',args=interrupted.args or {}})
+ end
+ local minerals=state.data.materialCycle
+ if minerals and minerals.jobId and interrupted.id==minerals.jobId
+     and interrupted.action=='material_cycle' and
+     interrupted.status=='started' then
+  M.handle({id=minerals.jobId,action='material_cycle',
+   args=interrupted.args or {}})
  end
  while true do
   local ok,err=pcall(function()
