@@ -16,6 +16,8 @@ for x=-3,-1 do sand[x..':0']=true end
 local stoneDepth=0
 local shaftCap=false
 local shaftDug={}
+local otherShaftDug={}
+local otherShaftCap=false
 local moves=0
 local extraMovementFuel=0
 local function key(x,z)return x..':'..z end
@@ -76,10 +78,13 @@ local function below()
   return 'minecraft:chest'
  end
  if physical.y==0 and sand[key(physical.x,physical.z)] then return 'minecraft:sand' end
- if physical.x==0 and physical.z==2 then
-  if physical.y==0 and shaftCap then return 'minecraft:dirt' end
+ if physical.x==0 and (physical.z==2 or physical.z==-2) then
+  local second=physical.z==-2
+  local capped=second and otherShaftCap or shaftCap
+  local dug=second and otherShaftDug or shaftDug
+  if physical.y==0 and capped then return 'minecraft:dirt' end
   if physical.y<=0 and physical.y>-17
-      and not shaftDug[physical.y] then return 'minecraft:stone' end
+      and not dug[physical.y] then return 'minecraft:stone' end
   return nil
  end
  if physical.y==0 then return 'minecraft:grass_block' end
@@ -148,9 +153,14 @@ turtle={
    sand[key(physical.x,physical.z)]=nil
    add('minecraft:sand',1)
   elseif n=='minecraft:stone' then
-   shaftDug[physical.y]=true
+   if physical.z==-2 then otherShaftDug[physical.y]=true
+   else shaftDug[physical.y]=true end
    add('minecraft:cobblestone',1)
    stoneDepth=stoneDepth+1
+  elseif n=='minecraft:dirt' then
+   if physical.x==0 and physical.z==2 then shaftCap=false end
+   if physical.x==0 and physical.z==-2 then otherShaftCap=false end
+   add('minecraft:dirt',1)
   elseif n=='minecraft:grass_block' then
    add('minecraft:dirt',1)
   elseif n=='minecraft:chest' then error('Attempted to destroy base chest') end
@@ -198,11 +208,13 @@ turtle={
   return true
  end,
  placeDown=function()
-  if physical.x==0 and physical.z==2 then
+  if physical.x==0 and (physical.z==2 or physical.z==-2) then
    local itemName=item(sel) and item(sel).name
    assert(itemName=='minecraft:dirt' or itemName=='minecraft:cobblestone',
     'Shaft cap must use recovered dirt or surplus stone')
-   spend(itemName,1);shaftCap=true;return true
+   spend(itemName,1)
+   if physical.z==-2 then otherShaftCap=true else shaftCap=true end
+   return true
   end
   assert(item(sel) and item(sel).name=='minecraft:chest')
   assert(physical.x==0 and physical.z==0)
@@ -411,3 +423,22 @@ assert(bootstrap.woodCycle('10:lumber:1'))
 assert((stored['minecraft:oak_planks'] or 0)==planks,
  'Same wood-cycle ID consumed extra trees or planks')
 print('PASS: established base keeps a usable lumber reserve for later offspring')
+
+-- Resource stock is renewable across controller jobs, not just the original
+-- kit. Simulate depletion and a new sandbank/stone site in ordinary terrain.
+stored['minecraft:sand']=0
+for x=4,9 do sand[x..':0']=true end
+assert(bootstrap.materialCycle('10:materials:1'))
+assert(d.materialCycle==nil and d.lastMaterialJob=='10:materials:1')
+assert((stored['minecraft:sand'] or 0)>=6,
+ 'Material maintenance failed to replace consumed sand')
+assert((stored['minecraft:cobblestone'] or 0)+
+       (stored['minecraft:stone'] or 0)>=14,
+ 'Material maintenance failed to stock enough workshop stone')
+assert(otherShaftCap,
+ 'Second explored stone shaft was left open')
+local savedStone=stored['minecraft:cobblestone']
+assert(bootstrap.materialCycle('10:materials:1'))
+assert(stored['minecraft:cobblestone']==savedStone,
+ 'Replaying a successful mineral job duplicated materials')
+print('PASS: replenished sand and stone, capped second shaft, and deduplicated job')
