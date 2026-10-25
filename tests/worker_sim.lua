@@ -148,3 +148,17 @@ assert(not w.handle(lumber).ok)
 assert(w.handle(lumber).ok and tries==2)
 assert(w.handle(lumber).ok and tries==2)
 print('PASS: paused lumber job retries once with same persistent ID')
+
+local mineralAttempts=0
+package.loaded.state.data.materialCycle={jobId='7:minerals',stage='sand'}
+package.loaded.bootstrap={materialCycle=function(id)
+ assert(id=='7:minerals')
+ mineralAttempts=mineralAttempts+1
+ if mineralAttempts==1 then error('No available sand') end
+ package.loaded.state.data.materialCycle=nil
+end}
+local minerals={id='7:minerals',action='material_cycle',args={}}
+assert(not w.handle(minerals).ok)
+assert(w.handle(minerals).ok and mineralAttempts==2)
+assert(w.handle(minerals).ok and mineralAttempts==2)
+print('PASS: material-cycle retry is journaled against its original job ID')
